@@ -12,6 +12,7 @@ Deep Learnig系の論文では，「論文で書いてある事と実装でさ�
 - numpy : 
 - pytorch : 1.04
 - opencv : 4.0
+- cuda, cuDNN
 
 # 使用方法
 ## 環境構築
