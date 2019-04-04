@@ -132,33 +132,45 @@ class LocalEnhancer(nn.Module):
         n_blocks_local=3,
         norm_layer=None,
         padding_type="reflect",
+        isActivation=False,
     ):
-        """[summary]
+        """Local Enhancer Generator
         
         Parameters
         ----------
         input_nc : int
             number of input channels
+
         output_nc : int
             number of output channels
+
         ngf : int
             number of gen filters in first conv layer
+
         n_downsample_global : int, optional
             number of downsampling layers in netG (the default is 3,
             which [default_description])
+
         n_blocks_global : int, optional
             number of residual blocks in the global generator network (the default is 9,
                 which [default_description])
+
         n_local_enhancers : int, optional
             number of local enhancers to use' (the default is 1,
                 which [default_description])
+
         n_blocks_local : int, optional
                 (the default is 3, which [default_description])
+
         norm_layer : nn.norm, optional
             normalization layer any of the following 'instacne, batch'
              (the default is nn.BatchNorm2d, which [default_description])
+
         padding_type : str, optional
             padding type (the default is "reflect", which [default_description])
+
+        isActivation : bool, optional
+            whether apply Activation(ReLU) after add in ResBlock.
         
         """
         super(LocalEnhancer, self).__init__()
@@ -166,22 +178,23 @@ class LocalEnhancer(nn.Module):
 
         # global generator model
         ngf_global = ngf * (2 ** n_local_enhancers)
-        model_global = GlobalGenerator(
+        global_gen = GlobalGenerator(
             input_nc,
             output_nc,
             ngf_global,
             n_downsample_global,
             n_blocks_global,
             norm_layer,
-        ).model
-        model_global = [
-            model_global[i] for i in range(len(model_global) - 3)
-        ]  # get rid of final convolution layers
-        self.model = nn.Sequential(*model_global)
+            isActivation=isActivation,
+        ).global_gen
+        global_gen = [
+            global_gen[i] for i in range(len(global_gen) - 3)
+        ]  # get rid of final convolution layers. 3 menas layes of [ReflactionPad, Conv2d, Tanh]
+        self.global_gen = nn.Sequential(*global_gen)
 
-        ###### local enhancer layers #####
+        # local enhancer layers
         for n in range(1, n_local_enhancers + 1):
-            ### downsample
+            # downsample
             ngf_global = ngf * (2 ** (n_local_enhancers - n))
             model_downsample = [
                 nn.ReflectionPad2d(3),
@@ -194,16 +207,19 @@ class LocalEnhancer(nn.Module):
                 norm_layer(ngf_global * 2),
                 nn.ReLU(True),
             ]
-            ### residual blocks
+            # residual blocks
             model_upsample = []
             for i in range(n_blocks_local):
                 model_upsample += [
                     ResnetBlock(
-                        ngf_global * 2, padding_type=padding_type, norm_layer=norm_layer
+                        ngf_global * 2,
+                        padding_type=padding_type,
+                        norm_layer=norm_layer,
+                        isActivation=isActivation,
                     )
                 ]
 
-            ### upsample
+            # upsample
             model_upsample += [
                 nn.ConvTranspose2d(
                     ngf_global * 2,
@@ -217,7 +233,7 @@ class LocalEnhancer(nn.Module):
                 nn.ReLU(True),
             ]
 
-            ### final convolution
+            # final convolution
             if n == n_local_enhancers:
                 model_upsample += [
                     nn.ReflectionPad2d(3),
@@ -233,15 +249,15 @@ class LocalEnhancer(nn.Module):
             3, stride=2, padding=[1, 1], count_include_pad=False
         )
 
-    def forward(self, input):
-        ### create input pyramid
-        input_downsampled = [input]
+    def forward(self, input_):
+        # create input pyramid
+        input_downsampled = [input_]
         for i in range(self.n_local_enhancers):
             input_downsampled.append(self.downsample(input_downsampled[-1]))
 
-        ### output at coarest level
+        # output at coarest level
         output_prev = self.model(input_downsampled[-1])
-        ### build up one layer at a time
+        # build up one layer at a time
         for n_local_enhancers in range(1, self.n_local_enhancers + 1):
             model_downsample = getattr(self, "model" + str(n_local_enhancers) + "_1")
             model_upsample = getattr(self, "model" + str(n_local_enhancers) + "_2")
@@ -260,6 +276,7 @@ class GlobalGenerator(nn.Module):
         n_blocks=9,
         norm_layer=None,
         padding_type="reflect",
+        isActivation=False,
     ):
         """Bilut Global Genetrator.
         
@@ -267,21 +284,30 @@ class GlobalGenerator(nn.Module):
         ----------
         input_nc : int
             number of input channels
+
         output_nc : int
             number of output channels
+
         ngf : int
             number of gen filters in first conv layer
+
         n_downsample : int, optional
             number of downsampling layers in netG (the default is 4,
             which [default_description])
+
         n_blocks : int, optional
             number of residual blocks in the global generator network (the default is 9,
             which [default_description])
+
         norm_layer : nn.norm, optional
             normalization layer any of the following 'instacne, batch'
              (the default is nn.BatchNorm2d, which [default_description])
+
         padding_type : str, optional
             padding type (the default is "reflect", which [default_description])
+
+        isActivation : bool, optional
+            whether apply Activation(ReLU) after add in ResBolck. 
         
         """
         super().__init__()
@@ -314,6 +340,7 @@ class GlobalGenerator(nn.Module):
                     padding_type=padding_type,
                     activation=activation,
                     norm_layer=norm_layer,
+                    isActivation=isActivation,
                 )
             ]
 
@@ -359,14 +386,19 @@ class ResnetBlock(nn.Module):
         ----------
         input_nc : int
             number of input channels
+
         padding_type : str, optional
             padding type
+
         norm_layer : nn.norm, optional
             normalization layer any of the following 'instacne, batch'
+
         activation : nn.ReLU or nn.LeakyReLU, optional
             activation (the default is nn.ReLU(True), which [default_description])
+
         use_dropout : bool, optional
             whether use dropout in resblock (the default is False)
+
         isActivation : bool, optional
             whether apply Activation(ReLU) after add.
         
@@ -422,4 +454,3 @@ class ResnetBlock(nn.Module):
             F.relu_(out)
             assert out.min() < 0, "output of ResBlock is not range of [0, inf)"
         return out
-
