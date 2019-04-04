@@ -61,30 +61,41 @@ def define_G(
     ----------
     input_nc : int
         number of input channels
+
     output_nc : int
         number of output channels
+
     ngf : int
         number of gen filters in first conv layer
+
     device : torch.device
         device to send model.
+
     g_type : str
         Types of Generator (global or local)
+
     n_downsample_global : int, optional
         number of downsampling layers in netG (the default is 3,
         which [default_description])
+
     n_blocks_global : int, optional
         number of residual blocks in the global generator network (the default is 9,
          which [default_description])
+
     n_local_enhancers : int, optional
         number of local enhancers to use' (the default is 1,
          which [default_description])
+
     n_blocks_local : int, optional
          (the default is 3, which [default_description])
+
     norm_type : str, optional
         Type of normalization layer (instance, batch) (the default is 'instance',
          which [default_description])
+
     isAffine : bool, optional
         whther apply affine in normalization layer (the default is True)
+
     gain : float, optional
         standard variation
     
@@ -132,7 +143,7 @@ class LocalEnhancer(nn.Module):
         n_blocks_local=3,
         norm_layer=None,
         padding_type="reflect",
-        isActivation=False,
+        use_relu=False,
     ):
         """Local Enhancer Generator
         
@@ -169,7 +180,7 @@ class LocalEnhancer(nn.Module):
         padding_type : str, optional
             padding type (the default is "reflect", which [default_description])
 
-        isActivation : bool, optional
+        use_relu : bool, optional
             whether apply Activation(ReLU) after add in ResBlock.
         
         """
@@ -185,7 +196,7 @@ class LocalEnhancer(nn.Module):
             n_downsample_global,
             n_blocks_global,
             norm_layer,
-            isActivation=isActivation,
+            use_relu=use_relu,
         ).global_gen
         global_gen = [
             global_gen[i] for i in range(len(global_gen) - 3)
@@ -215,7 +226,7 @@ class LocalEnhancer(nn.Module):
                         ngf_global * 2,
                         padding_type=padding_type,
                         norm_layer=norm_layer,
-                        isActivation=isActivation,
+                        use_relu=use_relu,
                     )
                 ]
 
@@ -276,7 +287,7 @@ class GlobalGenerator(nn.Module):
         n_blocks=9,
         norm_layer=None,
         padding_type="reflect",
-        isActivation=False,
+        use_relu=False,
     ):
         """Bilut Global Genetrator.
         
@@ -306,7 +317,7 @@ class GlobalGenerator(nn.Module):
         padding_type : str, optional
             padding type (the default is "reflect", which [default_description])
 
-        isActivation : bool, optional
+        use_relu : bool, optional
             whether apply Activation(ReLU) after add in ResBolck. 
         
         """
@@ -340,7 +351,7 @@ class GlobalGenerator(nn.Module):
                     padding_type=padding_type,
                     activation=activation,
                     norm_layer=norm_layer,
-                    isActivation=isActivation,
+                    use_relu=use_relu,
                 )
             ]
 
@@ -378,7 +389,7 @@ class ResnetBlock(nn.Module):
         norm_layer,
         activation=nn.ReLU(True),
         use_dropout=False,
-        isActivation=False,
+        use_relu=False,
     ):
         """built resnet block
         
@@ -399,12 +410,12 @@ class ResnetBlock(nn.Module):
         use_dropout : bool, optional
             whether use dropout in resblock (the default is False)
 
-        isActivation : bool, optional
+        use_relu : bool, optional
             whether apply Activation(ReLU) after add.
         
         """
         super(ResnetBlock, self).__init__()
-        self.isActivation = isActivation
+        self.use_relu = use_relu
         self.conv_block = self.build_conv_block(
             input_nc, padding_type, norm_layer, activation, use_dropout
         )
@@ -450,7 +461,62 @@ class ResnetBlock(nn.Module):
 
     def forward(self, x):
         out = x + self.conv_block(x)
-        if self.isActivation:
+        if self.use_relu:
             F.relu_(out)
             assert out.min() < 0, "output of ResBlock is not range of [0, inf)"
         return out
+
+
+def define_D(
+    input_nc,
+    ndf,
+    n_layers_D,
+    device,
+    norm_type="instance",
+    use_sigmoid=False,
+    num_D=3,
+    getIntermFeat=True,
+    gpu_ids=[],
+    isAffine=False,
+    gain=0.02,
+):
+    """bilut discriminator of pix2pixHD
+
+    Parameters
+    ----------
+    input_nc : int
+        number of input channels
+
+    ndf : int
+        number of dis  filters in first conv.
+
+    n_layers_D : int
+        nuber of dis layers
+
+    device : torch.device
+        device to send model.
+
+    norm_type : str, optional
+        Type of normalization layer (instance, batch) (the default is 'instance',
+         which [default_description])
+
+    use_sigmoid : bool, optional
+        whether use sigmoid in the end of dis.
+
+    num_D : int, optional
+        number of discriminators
+
+    getIntermFeat : bool, optional
+        whether get internal features of discriminator to use FM loss.
+
+    gpu_ids : list, optional
+        [description] (the default is [], which [default_description])
+
+    isAffine : bool, optional
+        whther apply affine in normalization layer (the default is True)
+
+    gain : float, optional
+        standard variation
+    """
+
+    pass
