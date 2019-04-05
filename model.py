@@ -98,7 +98,7 @@ def define_G(
 
     gain : float, optional
         standard variation
-    
+
     Return
     -------
     netG : torch.nn.Module
@@ -146,7 +146,7 @@ class LocalEnhancer(nn.Module):
         use_relu=False,
     ):
         """Local Enhancer Generator
-        
+
         Parameters
         ----------
         input_nc : int
@@ -182,7 +182,7 @@ class LocalEnhancer(nn.Module):
 
         use_relu : bool, optional
             whether apply Activation(ReLU) after add in ResBlock.
-        
+
         """
         super(LocalEnhancer, self).__init__()
         self.n_local_enhancers = n_local_enhancers
@@ -290,7 +290,7 @@ class GlobalGenerator(nn.Module):
         use_relu=False,
     ):
         """Bilut Global Genetrator.
-        
+
         Parameters
         ----------
         input_nc : int
@@ -318,8 +318,8 @@ class GlobalGenerator(nn.Module):
             padding type (the default is "reflect", which [default_description])
 
         use_relu : bool, optional
-            whether apply Activation(ReLU) after add in ResBolck. 
-        
+            whether apply Activation(ReLU) after add in ResBolck.
+
         """
         super().__init__()
         assert norm_layer is not None, "must set norm_layer"
@@ -392,7 +392,7 @@ class ResnetBlock(nn.Module):
         use_relu=False,
     ):
         """built resnet block
-        
+
         Parameters
         ----------
         input_nc : int
@@ -412,7 +412,7 @@ class ResnetBlock(nn.Module):
 
         use_relu : bool, optional
             whether apply Activation(ReLU) after add.
-        
+
         """
         super(ResnetBlock, self).__init__()
         self.use_relu = use_relu
@@ -520,3 +520,55 @@ def define_D(
     """
 
     pass
+
+
+class MultiscaleDiscriminator(nn.Module):
+    def __init__(
+        self,
+        input_nc,
+        ndf=64,
+        n_layers=3,
+        norm_layer=nn.BatchNorm2d,
+        use_sigmoid=False,
+        num_D=3,
+        getIntermFeat=False,
+    ):
+        pass
+
+
+class NLayerDiscriminator(nn.Module):
+    def __init__(
+        self,
+        input_nc,
+        ndf=64,
+        n_layers=3,
+        norm_layer=nn.BatchNorm2d,
+        use_sigmoid=False,
+        getIntermFeat=False,
+    ):
+        """single Discriminator with n layers
+
+        Parameters
+        ----------
+        input_nc : int
+            number of input channels
+
+        ndf : int, optional
+            number of dis  filters in first conv.
+
+        n_layers : int, optional
+            [description] (the default is 3, which [default_description])
+
+        norm_layer : [type], optional
+            [description] (the default is nn.BatchNorm2d, which [default_description])
+
+        use_sigmoid : bool, optional
+            [description] (the default is False, which [default_description])
+
+        getIntermFeat : bool, optional
+            [description] (the default is False, which [default_description])
+
+        """
+
+        pass
+
