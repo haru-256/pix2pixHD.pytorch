@@ -1,7 +1,10 @@
 import functools
+import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from torch.nn import init
+from torchvision import models
+import numpy as np
 
 
 def weights_init(m, gain=0.02):
@@ -507,7 +510,7 @@ def define_D(
         number of discriminators
 
     getIntermFeat : bool, optional
-        whether get internal features of discriminator to use FM loss.
+        whether get intermediate features of discriminator to use FM loss.
 
     gpu_ids : list, optional
         [description] (the default is [], which [default_description])
@@ -517,6 +520,11 @@ def define_D(
 
     gain : float, optional
         standard variation
+
+    Return
+    ---------
+    netD : nn.Module
+        MultiDiscriminator
     """
 
     pass
@@ -531,9 +539,123 @@ class MultiscaleDiscriminator(nn.Module):
         norm_layer=nn.BatchNorm2d,
         use_sigmoid=False,
         num_D=3,
-        getIntermFeat=False,
+        getIntermFeat=True,
     ):
-        pass
+        """Multi Discriminator
+
+        Parameters
+        ----------
+        input_nc : int
+            number of input channels
+
+        ndf : int, optional
+            number of filters in first conv layer (the default is 64,
+             which [default_description])
+
+        n_layers : int, optional
+            number of layers in single discriminator (the default is 3,
+             which [default_description])
+
+        norm_layer : [type], optional
+            normalization layer (the default is nn.BatchNorm2d,
+             which [default_description])
+
+        use_sigmoid : bool, optional
+            whether use sigmoid in the end of each discriminator.
+             (the default is False, which [default_description])
+
+        num_D : int, optional
+            numbers of Discriminators (the default is 3, which [default_description])
+
+        getIntermFeat : bool, optional
+            whethere get intermediate features in each discriminator to use FM loss
+             (the default is True, which [default_description])
+        """
+
+        super(MultiscaleDiscriminator, self).__init__()
+        self.num_D = num_D
+        self.n_layers = n_layers
+        self.getIntermFeat = getIntermFeat
+
+        for i in range(num_D):
+            netD = NLayerDiscriminator(
+                input_nc, ndf, n_layers, norm_layer, use_sigmoid, getIntermFeat
+            )
+            if getIntermFeat:
+                for j in range(n_layers + 2):
+                    setattr(
+                        self,
+                        "scale" + str(i) + "_layer" + str(j),
+                        getattr(netD, "model" + str(j)),
+                    )
+            else:
+                setattr(self, "layer" + str(i), netD.model)
+
+        self.downsample = nn.AvgPool2d(
+            3, stride=2, padding=[1, 1], count_include_pad=False
+        )
+
+    def singleD_forward(self, model, input_):
+        """forward in single discriminator
+
+        Parameters
+        ----------
+        model : nn.Module or list of nn.Module
+            a single discrimnator. If self.getIntermFeat is True,
+            If self.getIntermFeat is True, then model is a list and each element represents
+            each layer of the single discriminator.
+
+        input_ : nn.Tensor
+            input tensor to single discriminator.
+
+        Returns
+        -------
+        result : nn.Tensor or list of nn.Tensor
+            output of the single discriminator.
+            If self.getIntermFeat is True, then reslut is a list and each element represents
+            each layer's output of the single discriminator.
+        """
+
+        if self.getIntermFeat:
+            result = [input_]
+            for i in range(len(model)):
+                result.append(model[i](result[-1]))
+            return result[1:]
+        else:
+            return [model(input_)]
+
+    def forward(self, input_):
+        """forward
+
+        Parameters
+        ----------
+        input_ : nn.Tensor
+            input to MultiscaleDiscriminator
+
+        Returns
+        -------
+        result : list of nn.Tensor or list of list of nn.Tensor
+            output of MultiscaleDiscriminator. Each elemnet is output of a single
+            discriminator If self.getIntermFeat is True, this is list of list of Tensor,
+            each list is output of a single discriminator. And  each elements of inner
+            list is intermediate features of discriminator.
+        """
+
+        num_D = self.num_D
+        result = []
+        input_downsampled = input_
+        for i in range(num_D):
+            if self.getIntermFeat:
+                model = [
+                    getattr(self, "scale" + str(num_D - 1 - i) + "_layer" + str(j))
+                    for j in range(self.n_layers + 2)
+                ]
+            else:
+                model = getattr(self, "layer" + str(num_D - 1 - i))
+            result.append(self.singleD_forward(model, input_downsampled))
+            if i != (num_D - 1):
+                input_downsampled = self.downsample(input_downsampled)
+        return result
 
 
 class NLayerDiscriminator(nn.Module):
@@ -544,7 +666,8 @@ class NLayerDiscriminator(nn.Module):
         n_layers=3,
         norm_layer=nn.BatchNorm2d,
         use_sigmoid=False,
-        getIntermFeat=False,
+        getIntermFeat=True,
+        slope=0.2,
     ):
         """single Discriminator with n layers
 
@@ -557,18 +680,315 @@ class NLayerDiscriminator(nn.Module):
             number of dis  filters in first conv.
 
         n_layers : int, optional
-            [description] (the default is 3, which [default_description])
+            number of layers in discriminator (the default is 3,
+             which [default_description])
 
         norm_layer : [type], optional
-            [description] (the default is nn.BatchNorm2d, which [default_description])
+            Normalization Layer (the default is nn.BatchNorm2d,
+             which [default_description])
 
         use_sigmoid : bool, optional
-            [description] (the default is False, which [default_description])
+            whether use sigmoid in the end of discriminator (the default is False,
+             which [default_description])
 
         getIntermFeat : bool, optional
-            [description] (the default is False, which [default_description])
+            whether get intermediate features in discriminator to use FM loss
+             (the default is False, which [default_description])
+
+        slope : float, optional
+            slope of LeakyReLU
 
         """
 
-        pass
+        super(NLayerDiscriminator, self).__init__()
+        self.getIntermFeat = getIntermFeat
+        self.n_layers = n_layers
 
+        kw = 4
+        padw = int(np.ceil((kw - 1.0) / 2))
+
+        sequence = [
+            [
+                nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw),
+                nn.LeakyReLU(slope, True),
+            ]
+        ]
+
+        nf = ndf
+        for n in range(1, n_layers):
+            nf_prev = nf
+            nf = min(nf * 2, 512)
+            sequence += [
+                [
+                    nn.Conv2d(nf_prev, nf, kernel_size=kw, stride=2, padding=padw),
+                    norm_layer(nf),
+                    nn.LeakyReLU(slope, True),
+                ]
+            ]
+
+        nf_prev = nf
+        nf = min(nf * 2, 512)
+        sequence += [
+            [
+                nn.Conv2d(nf_prev, nf, kernel_size=kw, stride=1, padding=padw),
+                norm_layer(nf),
+                nn.LeakyReLU(slope, True),
+            ]
+        ]
+
+        sequence += [[nn.Conv2d(nf, 1, kernel_size=kw, stride=1, padding=padw)]]
+
+        if use_sigmoid:
+            sequence += [[nn.Sigmoid()]]
+
+        if getIntermFeat:
+            for n in range(len(sequence)):
+                setattr(self, "model" + str(n), nn.Sequential(*sequence[n]))
+        else:
+            sequence_stream = []
+            for n in range(len(sequence)):
+                sequence_stream += sequence[n]
+            self.model = nn.Sequential(*sequence_stream)
+
+    def forward(self, input_):
+        """foeward of NLayerDiscriminator
+
+        Parameters
+        ----------
+        input_ : Tensor, shape is (N, C, H, W)
+            input tensor to single discriminator
+
+        Returns
+        -------
+        result  : Tensor, shape is (N, 1, h, w)
+            output of single Discriminator.
+            If self.getIntermFeat is True, result is list of output of each layer.
+        """
+
+        if self.getIntermFeat:
+            res = [input_]
+            for n in range(self.n_layers + 2):
+                model = getattr(self, "model" + str(n))
+                res.append(model(res[-1]))
+            return res[1:]
+        else:
+            return self.model(input_)
+
+
+def define_E(
+    input_nc,
+    feat_num,
+    nef,
+    n_downsample=4,
+    norm_type="instance",
+    isAffine=True,
+    gain=0.02,
+):
+    """bilut Encoder
+
+    Parameters
+    ----------
+    input_nc : int
+        number of input channels.
+
+    feat_num : int
+        number of low-dim features (In other word, number of output channels).
+
+    nef : int
+        number of filters in first convlayers of Encoder.
+
+    n_downsample : int, optional
+        number of downsampling layers expect for first conv layer(c7s1-k)
+        (the default is 4, which [default_description])
+
+    norm_type : str, optional
+        Type of normalization layer (instance, batch) (the default is 'instance',
+         which [default_description])
+
+    isAffine : bool, optional
+        whther apply affine in normalization layer (the default is True)
+
+    gain : float, optional
+        standard variation
+
+    Return
+    -------
+    netE : torch.nn.Module
+        Generator after initializie, according to g_type.
+
+    """
+
+    pass
+
+
+class Encoder(nn.Module):
+    def __init__(
+        self, input_nc, feat_num, nef=16, n_downsampling=4, norm_layer=nn.BatchNorm2d
+    ):
+        """Encoder
+
+        Parameters
+        ----------
+        input_nc : int
+            number of input channel
+
+        feat_num : int
+            number of low-dim features (In other word, number of output channels).
+
+        nef : int, optional
+            number of filters in first conv layer of Encoder
+             (the default is 32, which [default_description])
+
+        n_downsampling : int, optional
+            number of downsampling layers in Encoder
+             (the default is 4, which [default_description])
+
+        norm_layer : [type], optional
+            Normalization Layer (the default is nn.BatchNorm2d, which [default_description])
+
+        """
+
+        super(Encoder, self).__init__()
+        self.output_nc = feat_num
+
+        model = [
+            nn.ReflectionPad2d(3),
+            nn.Conv2d(input_nc, nef, kernel_size=7, padding=0),
+            norm_layer(nef),
+            nn.ReLU(True),
+        ]
+        # downsample
+        for i in range(n_downsampling):
+            mult = 2 ** i
+            model += [
+                nn.Conv2d(
+                    nef * mult, nef * mult * 2, kernel_size=3, stride=2, padding=1
+                ),
+                norm_layer(nef * mult * 2),
+                nn.ReLU(True),
+            ]
+
+        # upsample
+        for i in range(n_downsampling):
+            mult = 2 ** (n_downsampling - i)
+            model += [
+                nn.ConvTranspose2d(
+                    nef * mult,
+                    int(nef * mult / 2),
+                    kernel_size=3,
+                    stride=2,
+                    padding=1,
+                    output_padding=1,
+                ),
+                norm_layer(int(nef * mult / 2)),
+                nn.ReLU(True),
+            ]
+
+        model += [
+            nn.ReflectionPad2d(3),
+            nn.Conv2d(nef, self.output_nc, kernel_size=7, padding=0),
+            nn.Tanh(),
+        ]
+        self.model = nn.Sequential(*model)
+
+    def forward(self, input_, inst):
+        """forward
+
+        Parameters
+        ----------
+        input_ : nn.Tensor
+            real images corresponding to segmentation map
+        inst : nn.Tensor
+            instance images corresponding to instance map
+
+        Returns
+        -------
+        output_mean : nn.Tensor
+            low dimensional features.
+        """
+
+        outputs = self.model(input_)
+
+        # instance-wise average pooling
+        outputs_mean = outputs.clone()
+        # get instance id.
+        inst_list = np.unique(inst.cpu().numpy().astype(int))
+        for i in inst_list:
+            for b in range(input_.size()[0]):
+                # get indices of pixel with instance ID: i
+                indices = (inst[b] == int(i)).nonzero()  # n x 4
+                # n is Number of pixels corresponding to i,
+                # 4 is number of inst dimensions
+
+                # make dimentional features with output_nc channels
+                for j in range(self.output_nc):
+                    output_ins = outputs[
+                        indices[:, 0] + b,
+                        indices[:, 1] + j,
+                        indices[:, 2],
+                        indices[:, 3],
+                    ]
+                    mean_feat = torch.mean(output_ins).expand_as(output_ins)
+                    outputs_mean[
+                        indices[:, 0] + b,
+                        indices[:, 1] + j,
+                        indices[:, 2],
+                        indices[:, 3],
+                    ] = mean_feat
+        return outputs_mean
+
+
+class Vgg19(torch.nn.Module):
+    def __init__(self, requires_grad=False):
+        """VGG19
+
+        Parameters
+        ----------
+        requires_grad : bool, optional
+            whether need parameters gradient.
+             (the default is False, which [default_description])
+
+        """
+
+        super(Vgg19, self).__init__()
+        vgg_pretrained_features = models.vgg19(pretrained=True).features
+        self.slice1 = torch.nn.Sequential()
+        self.slice2 = torch.nn.Sequential()
+        self.slice3 = torch.nn.Sequential()
+        self.slice4 = torch.nn.Sequential()
+        self.slice5 = torch.nn.Sequential()
+        for x in range(2):
+            self.slice1.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(2, 7):
+            self.slice2.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(7, 12):
+            self.slice3.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(12, 21):
+            self.slice4.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(21, 30):
+            self.slice5.add_module(str(x), vgg_pretrained_features[x])
+        if not requires_grad:
+            for param in self.parameters():
+                param.requires_grad = False
+
+    def forward(self, input_):
+        """forward
+
+        Parameters
+        ----------
+        input_ : nn.Tensor shape is (N, C, H, W)
+            input to VGG (Generated Image)
+
+        Returns
+        -------
+        out : list of nn.Tensor
+            each element is intermediate features of VGG to use Perceptual Loss.
+        """
+
+        h_relu1 = self.slice1(input_)
+        h_relu2 = self.slice2(h_relu1)
+        h_relu3 = self.slice3(h_relu2)
+        h_relu4 = self.slice4(h_relu3)
+        h_relu5 = self.slice5(h_relu4)
+        out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
+        return out
