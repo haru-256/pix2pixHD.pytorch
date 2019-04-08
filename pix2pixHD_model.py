@@ -18,27 +18,52 @@ class Pix2PixHDModel(nn.Module):
         self.opt = opt
 
         if opt.gpu_id == 0:
-            torch.device("cuda:0")
+            device = torch.device("cuda:0")
         elif opt.gpu_id == 1:
-            torch.device("cuda:1")
+            device = torch.device("cuda:1")
         else:
-            torch.device("cpu")
+            device = torch.device("cpu")
 
         self.device = torch.device()
 
         # define networks, respectively
-        self.netG = define_G()
+        input_nc = opt.label_map
+        if opt.use_feature:
+            input_nc += opt.feature_nc
         if opt.use_edge:
-            input_nc = opt.label_num + opt.input_nc + 1
+            input_nc += 1
+        self.netG = define_G(
+            input_nc=input_nc,
+            output_nc=opt.output_nc,
+            ngf=opt.ngf,
+            g_type=opt.g_type,
+            device=device,
+            isAffine=opt.isAffine,
+            use_relu=opt.use_relu,
+        )
+
+        input_nc = opt.output_nc
+        if opt.use_edge:
+            input_nc += opt.label_num + 1
         else:
-            input_nc = opt.label_num + opt.input_nc
+            input_nc += opt.label_num
         self.netD = define_D(
             input_nc=input_nc,
             ndf=opt.ndf,
             n_layers_D=opt.n_layers_D,
             device=self.device,
+            isAffine=opt.isAffine,
         )
-        self.netE = define_E(input_nc=opt.input_nc, feat_num=3, nef=opt.nef)
+
+        self.netE = define_E(
+            input_nc=opt.output_nc,
+            feat_num=opt.feature_nc,
+            nef=opt.nef,
+            device=device,
+            isAffine=opt.isAffine,
+        )
+
+        # define datasets, dataloader, dataloader
 
     def forward(self, inputs):
         """forward processing in one iteration.
@@ -90,3 +115,13 @@ class Pix2PixHDModel(nn.Module):
 
         return edge_map
 
+    def update_fixed_params(self):
+        # after fixing the global generator for a number of iterations, also start finetuning it
+        params = list(self.netG.parameters())
+        if self.use_features:
+            params += list(self.netE.parameters())
+        self.optimizer_G = torch.optim.Adam(
+            params, lr=self.opt.lr, betas=(self.opt.beta1, 0.999)
+        )
+        if self.opt.verbose:
+            print("------------ Now also finetuning global generator -----------")
