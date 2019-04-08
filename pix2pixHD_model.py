@@ -1,14 +1,47 @@
 import torch
 import torch.nn as nn
 import numpy as np
+from model import define_G, define_D, define_E
 
 
 class Pix2PixHDModel(nn.Module):
-    def __init__(self):
-        return super().__init__()
+    def __init__(self, opt):
+        """Pix2PIxHD model
+
+        Parameters
+        ----------
+        opt : ArgumentParsee
+            option of this Model. e.g.)  gain, isAffine
+
+        """
+        super(Pix2PixHDModel, self).__init__()
+        self.opt = opt
+
+        if opt.gpu_id == 0:
+            torch.device("cuda:0")
+        elif opt.gpu_id == 1:
+            torch.device("cuda:1")
+        else:
+            torch.device("cpu")
+
+        self.device = torch.device()
+
+        # define networks, respectively
+        self.netG = define_G()
+        if opt.use_edge:
+            input_nc = opt.label_num + opt.input_nc + 1
+        else:
+            input_nc = opt.label_num + opt.input_nc
+        self.netD = define_D(
+            input_nc=input_nc,
+            ndf=opt.ndf,
+            n_layers_D=opt.n_layers_D,
+            device=self.device,
+        )
+        self.netE = define_E(input_nc=opt.input_nc, feat_num=3, nef=opt.nef)
 
     def forward(self, inputs):
-        """forward
+        """forward processing in one iteration.
 
         Parameters
         ----------
@@ -56,3 +89,4 @@ class Pix2PixHDModel(nn.Module):
         """
 
         return edge_map
+

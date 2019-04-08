@@ -100,7 +100,7 @@ def define_G(
         whther apply affine in normalization layer (the default is True)
 
     gain : float, optional
-        standard variation
+        standard division
 
     Return
     -------
