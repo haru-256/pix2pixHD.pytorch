@@ -3,6 +3,7 @@ import torch.nn as nn
 from utils import LinearDecayLR
 import numpy as np
 from model import define_G, define_D, define_E
+from loss import GANLoss, PerceptualLoss, FMLoss
 
 
 class Pix2PixHDModel(nn.Module):
@@ -92,6 +93,20 @@ class Pix2PixHDModel(nn.Module):
         )
         self.scheduler_D = LinearDecayLR(self.optimizer_D, niter_decay=opt.niter_decay)
 
+        # defin loss functions
+        if opt.gpu_id == 0 or opt.gpu_id == 1:
+            self.Tensor = torch.cuda.FloatTensor
+        else:
+            self.Tensor = torch.FloatTensor
+
+        self.criterionGAN = GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
+        self.criterionFM = FMLoss(
+            num_D=opt.num_D, n_layers=opt.n_layers_D, lambda_feat=opt.lambda_feat
+        )
+        self.criterionP = PerceptualLoss(
+            self.device, lambda_perceptual=opt.lambda_perceptual
+        )
+
     def data2device(self, data_dict):
         """migrate data to device(e.g. cuda)
 
@@ -131,8 +146,9 @@ class Pix2PixHDModel(nn.Module):
         # get edge_map
         data_dict["edge_map"] = self.get_edge_map(data_dict["instance_map"])
 
-        # Generate fake image
+        loss = {}
 
+        # Generate fake image
         feat_vector = self.netE(
             input_=data_dict["real_iamge"], inst=data_dict["instance_map"]
         )
