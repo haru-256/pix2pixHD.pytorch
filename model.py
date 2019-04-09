@@ -125,7 +125,7 @@ def define_G(
         )
     else:
         raise ("generator not implemented!")
-    print("{} Generator", end="\n" + "=" * 50 + "\n")
+    print("{} Generator".format(g_type.capitalize()), end="\n" + "=" * 50 + "\n")
     print(netG, end="\n\n")
 
     netG.to(device)
@@ -473,7 +473,7 @@ class ResnetBlock(nn.Module):
 def define_D(
     input_nc,
     ndf,
-    n_layers_D,
+    n_layers,
     device,
     norm_type="instance",
     use_sigmoid=False,
@@ -493,7 +493,7 @@ def define_D(
     ndf : int
         number of dis  filters in first conv.
 
-    n_layers_D : int
+    n_layers : int
         nuber of dis layers
 
     device : torch.device
@@ -527,7 +527,19 @@ def define_D(
         MultiDiscriminator
     """
 
-    pass
+    norm_layer = get_norm_layer(norm_type=norm_type, isAffine=isAffine)
+
+    netD = MultiscaleDiscriminator(
+        input_nc, ndf, n_layers, norm_layer, use_sigmoid, num_D, getIntermFeat
+    )
+
+    print("MultiscaleDiscriminator", end="\n" + "=" * 50 + "\n")
+    print(netD, end="\n\n")
+
+    netD.to(device)
+    netD.apply(functools.partial(weights_init, gain=gain))
+
+    return netD
 
 
 class MultiscaleDiscriminator(nn.Module):
