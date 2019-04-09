@@ -57,7 +57,7 @@ def define_G(
     norm_type="instance",
     isAffine=True,
     gain=0.02,
-    use_relu=False
+    use_relu=False,
 ):
     """define Generator
 
@@ -807,7 +807,7 @@ def define_E(
     feat_num,
     nef,
     device,
-    n_downsample=4,
+    n_downsampling=4,
     norm_type="instance",
     isAffine=True,
     gain=0.02,
@@ -848,8 +848,21 @@ def define_E(
         Encoder after initializing
 
     """
+    norm_layer = get_norm_layer(norm_type=norm_type, isAffine=isAffine)
+    netE = Encoder(
+        input_nc=input_nc,
+        feat_num=feat_num,
+        nef=nef,
+        n_downsampling=n_downsampling,
+        norm_layer=norm_layer,
+    )
+    print("Encoder", end="\n" + "=" * 50 + "\n")
+    print(netE, end="\n\n")
 
-    pass
+    netE.to(device)
+    netE.apply(functools.partial(weights_init, gain=gain))
+
+    return netE
 
 
 class Encoder(nn.Module):

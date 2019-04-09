@@ -133,9 +133,13 @@ class Pix2PixHDModel(nn.Module):
 
         # Generate fake image
 
-        feat_vector = netE()
-        gen_inputs = torch.cat((data_dict["label_map"], data_dict["edge_map"]))
-        self.netG()
+        feat_vector = self.netE(
+            input_=data_dict["real_iamge"], inst=data_dict["instance_map"]
+        )
+        gen_inputs = torch.cat(
+            (data_dict["label_map"], data_dict["edge_map"], feat_vector), dim=1
+        )
+        fake_images = self.netG(gen_inputs)
 
         return losses
 
