@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from utils import LinearDecayLR
 import numpy as np
 from model import define_G, define_D, define_E
 
@@ -18,15 +19,13 @@ class Pix2PixHDModel(nn.Module):
         self.opt = opt
 
         if opt.gpu_id == 0:
-            device = torch.device("cuda:0")
+            self.device = torch.device("cuda:0")
         elif opt.gpu_id == 1:
-            device = torch.device("cuda:1")
+            self.device = torch.device("cuda:1")
         else:
-            device = torch.device("cpu")
+            self.device = torch.device("cpu")
 
-        self.device = torch.device()
-
-        # define networks, respectively
+        # define networks respectively
         input_nc = opt.label_map
         if opt.use_feature:
             input_nc += opt.feature_nc
@@ -63,7 +62,50 @@ class Pix2PixHDModel(nn.Module):
             isAffine=opt.isAffine,
         )
 
-        # define datasets, dataloader, dataloader
+        # define optimizer respectively
+        # initialize optimizer G&E
+        # if opt.niter_fix_global is True, fix parameters in Global Generator
+        if opt.niter_fix_global > 0:
+            finetune_list = set()
+
+            params = []
+            for key, value in self.netG.named_parameters():
+                if key.startswith("model" + str(opt.n_local_enhancers)):
+                    params += [value]
+                    finetune_list.add(key.split(".")[0])
+            print(
+                "------------- Only training the local enhancer network (for %d epochs) ------------"
+                % opt.niter_fix_global
+            )
+            print("The layers that are finetuned are ", sorted(finetune_list))
+        else:
+            params = list(self.netG.parameters())
+        if self.use_features:
+            params += list(self.netE.parameters())
+        self.optimizer_G = torch.optim.Adam(params, lr=opt.lr, betas=(opt.beta1, 0.999))
+        self.scheduler_G = LinearDecayLR(self.optimizer_G, niter_decay=opt.niter_decay)
+
+        # initialize optimizer D
+        # optimizer D
+        self.optimizer_D = torch.optim.Adam(
+            self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999)
+        )
+        self.scheduler_D = LinearDecayLR(self.optimizer_D, niter_decay=opt.niter_decay)
+
+    def data2device(self, data_dict):
+        """migrate data to device(e.g. cuda)
+
+        Args:
+            data_dict (dict): each keys is "real_image", "label_map", "instance_map".
+
+        Returns:
+            data_dict (dict): arguments(data_dict) after migrating.
+        """
+        for key, data in data_dict.items():
+            if data is None:
+                continue
+            data_dict[key] = data.to(self.device)
+        return data_dict
 
     def forward(self, inputs):
         """forward processing in one iteration.
@@ -71,8 +113,8 @@ class Pix2PixHDModel(nn.Module):
         Parameters
         ----------
         inputs : dict of nn.Tensor
-            input to Generator. This is disctinary, each keys is "real_image",
-            "label_map", "instance_map".
+            input to Generator or Discriminator. This is disctinary, each keys is
+            "real_image", "label_map", "instance_map".
 
         Returns
         -------
@@ -80,7 +122,9 @@ class Pix2PixHDModel(nn.Module):
             Loss. Each keys is "g_gan", "g_fm", "g_p",
             "d_real", "d_fake".
         """
-
+        # data migrate device
+        inputs = self.data2device(inputs)
+        # encode label_map
         return losses
 
     def encode_label_map(self, label_map):
@@ -94,8 +138,9 @@ class Pix2PixHDModel(nn.Module):
         Returns
         -------
         oneHot_label_map
-            one-hot vector represents label map.
+            one-hot vector label map.
         """
+        label_map
 
         return oneHot_label_map
 
@@ -122,6 +167,9 @@ class Pix2PixHDModel(nn.Module):
             params += list(self.netE.parameters())
         self.optimizer_G = torch.optim.Adam(
             params, lr=self.opt.lr, betas=(self.opt.beta1, 0.999)
+        )
+        self.scheduler_G = LinearDecayLR(
+            self.optimizer_G, niter_decay=self.opt.niter_decay
         )
         if self.opt.verbose:
             print("------------ Now also finetuning global generator -----------")

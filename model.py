@@ -195,6 +195,7 @@ class LocalEnhancer(nn.Module):
         self.n_local_enhancers = n_local_enhancers
 
         # global generator model
+        # print(str(n_local_enhancers), end="\n\n")
         ngf_global = ngf * (2 ** n_local_enhancers)
         global_gen = GlobalGenerator(
             input_nc,
