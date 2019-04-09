@@ -50,13 +50,14 @@ def define_G(
     ngf,
     g_type,
     device,
-    n_downsample_global=3,
+    n_downsample_global=4,
     n_blocks_global=9,
     n_local_enhancers=1,
     n_blocks_local=3,
     norm_type="instance",
     isAffine=True,
     gain=0.02,
+    use_relu=False
 ):
     """define Generator
 
@@ -78,7 +79,7 @@ def define_G(
         Types of Generator (global or local)
 
     n_downsample_global : int, optional
-        number of downsampling layers in netG (the default is 3,
+        number of downsampling layers in netG (the default is 4,
         which [default_description])
 
     n_blocks_global : int, optional
@@ -100,7 +101,10 @@ def define_G(
         whther apply affine in normalization layer (the default is True)
 
     gain : float, optional
-        standard variation
+        standard division
+
+    use_relu : bool, optional
+        whether apply Activation(ReLU) after add in ResBlock.
 
     Return
     -------
@@ -191,6 +195,7 @@ class LocalEnhancer(nn.Module):
         self.n_local_enhancers = n_local_enhancers
 
         # global generator model
+        # print(str(n_local_enhancers), end="\n\n")
         ngf_global = ngf * (2 ** n_local_enhancers)
         global_gen = GlobalGenerator(
             input_nc,
@@ -305,7 +310,7 @@ class GlobalGenerator(nn.Module):
         ngf : int
             number of gen filters in first conv layer
 
-        n_downsample : int, optional
+        n_downsampling : int, optional
             number of downsampling layers in netG (the default is 4,
             which [default_description])
 
@@ -524,7 +529,7 @@ def define_D(
     Return
     ---------
     netD : nn.Module
-        MultiDiscriminator
+        MultiDiscriminator after initializie
     """
 
     norm_layer = get_norm_layer(norm_type=norm_type, isAffine=isAffine)
@@ -791,6 +796,7 @@ def define_E(
     input_nc,
     feat_num,
     nef,
+    device,
     n_downsample=4,
     norm_type="instance",
     isAffine=True,
@@ -809,6 +815,9 @@ def define_E(
     nef : int
         number of filters in first convlayers of Encoder.
 
+    device : torch.device
+        device to send model.
+
     n_downsample : int, optional
         number of downsampling layers expect for first conv layer(c7s1-k)
         (the default is 4, which [default_description])
@@ -826,7 +835,7 @@ def define_E(
     Return
     -------
     netE : torch.nn.Module
-        Generator after initializie, according to g_type.
+        Encoder after initializing
 
     """
 
