@@ -269,6 +269,16 @@ class LocalEnhancer(nn.Module):
         )
 
     def forward(self, input_):
+        """forward processing
+
+        Args:
+            input_ (nn.Tensor): segmentation label map(one-hot vector).
+                this tensor is concatenated with edge_map and feature_vector
+
+        Returns:
+            output_prev (nn.Tensor): fake images.
+        """
+
         # create input pyramid
         input_downsampled = [input_]
         for i in range(self.n_local_enhancers):

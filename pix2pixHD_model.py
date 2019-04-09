@@ -36,7 +36,7 @@ class Pix2PixHDModel(nn.Module):
             output_nc=opt.output_nc,
             ngf=opt.ngf,
             g_type=opt.g_type,
-            device=device,
+            device=self.device,
             isAffine=opt.isAffine,
             use_relu=opt.use_relu,
         )
@@ -58,7 +58,7 @@ class Pix2PixHDModel(nn.Module):
             input_nc=opt.output_nc,
             feat_num=opt.feature_nc,
             nef=opt.nef,
-            device=device,
+            device=self.device,
             isAffine=opt.isAffine,
         )
 
@@ -107,12 +107,12 @@ class Pix2PixHDModel(nn.Module):
             data_dict[key] = data.to(self.device)
         return data_dict
 
-    def forward(self, inputs):
+    def forward(self, data_dict):
         """forward processing in one iteration.
 
         Parameters
         ----------
-        inputs : dict of nn.Tensor
+        data_dict : dict of nn.Tensor
             input to Generator or Discriminator. This is disctinary, each keys is
             "real_image", "label_map", "instance_map".
 
@@ -123,11 +123,23 @@ class Pix2PixHDModel(nn.Module):
             "d_real", "d_fake".
         """
         # data migrate device
-        inputs = self.data2device(inputs)
+        data_dict = self.data2device(data_dict)
         # encode label_map
+        data_dict["label_map"] = self.encode_label_map(
+            data_dict["label_map"], self.opt.label_num
+        )
+        # get edge_map
+        data_dict["edge_map"] = self.get_edge_map(data_dict["instance_map"])
+
+        # Generate fake image
+
+        feat_vector = netE()
+        gen_inputs = torch.cat((data_dict["label_map"], data_dict["edge_map"]))
+        self.netG()
+
         return losses
 
-    def encode_label_map(self, label_map):
+    def encode_label_map(self, label_map, n_class):
         """encode label map to one-hot vector
 
         Parameters
@@ -135,13 +147,24 @@ class Pix2PixHDModel(nn.Module):
         label_map : nn.Tensor (N, C=1, H, W)
             label map. Each pixel is int and represents Label ID.
 
+        n_class : int
+            number of classes in label map.
+
         Returns
         -------
         oneHot_label_map
             one-hot vector label map.
         """
-        label_map
 
+        oneHot_label_map = torch.FloatTensor(
+            label_map.size(0), n_class, label_map.size(2), label_map.size(3)
+        ).zero_()
+        oneHot_label_map = oneHot_label_map.scatter_(1, label_map, 1)
+        assert (0.0 <= oneHot_label_map).all() and (
+            oneHot_label_map <= 1.0
+        ).all(), "failed at encoding to make one-hot vector: range is [{}, {}]".format(
+            oneHot_label_map.min(), oneHot_label_map.max()
+        )
         return oneHot_label_map
 
     def get_edge_map(self, instance_map):
@@ -157,6 +180,23 @@ class Pix2PixHDModel(nn.Module):
         edge_map : nn.Tensor (N, C=1, H, W)
             Edge map. Each pixel is 1 or 0. 1 is boundary.
         """
+        edge_map = torch.ByteTensor(t.size()).zero_().to(self.device)
+        edge_map[:, :, :, 1:] = edge_map[:, :, :, 1:] | (
+            instance_map[:, :, :, 1:] != instance_map[:, :, :, :-1]
+        )
+        edge_map[:, :, :, :-1] = edge_map[:, :, :, :-1] | (
+            instance_map[:, :, :, 1:] != instance_map[:, :, :, :-1]
+        )
+        edge_map[:, :, 1:, :] = edge_map[:, :, 1:, :] | (
+            instance_map[:, :, 1:, :] != instance_map[:, :, :-1, :]
+        )
+        edge_map[:, :, :-1, :] = edge_map[:, :, :-1, :] | (
+            instance_map[:, :, 1:, :] != instance_map[:, :, :-1, :]
+        )
+        if self.opt.data_type == 16:
+            return edge_map.half()
+        else:
+            return edge_map.float()
 
         return edge_map
 
