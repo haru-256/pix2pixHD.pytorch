@@ -1011,6 +1011,7 @@ class Vgg19(torch.nn.Module):
             self.slice4.add_module(str(x), vgg_pretrained_features[x])
         for x in range(21, 30):
             self.slice5.add_module(str(x), vgg_pretrained_features[x])
+        # fix parameters.
         if not requires_grad:
             for param in self.parameters():
                 param.requires_grad = False

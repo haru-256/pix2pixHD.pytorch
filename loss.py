@@ -162,6 +162,11 @@ class PerceptualLoss(nn.Module):
             Perceptual Loss using VGG19.
         """
 
+        assert (
+            x.size(1) == 3 and y.size(1) == 3
+        ), "inputs to forward method is not images. Got shape:{}, {}".format(
+            x.size(), y.size()
+        )
         x_vgg, y_vgg = self.vgg(x), self.vgg(y)
         loss = 0
         for i in range(len(x_vgg)):

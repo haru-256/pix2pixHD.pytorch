@@ -100,12 +100,14 @@ class Pix2PixHDModel(nn.Module):
             self.Tensor = torch.FloatTensor
 
         self.criterionGAN = GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
-        self.criterionFM = FMLoss(
-            num_D=opt.num_D, n_layers=opt.n_layers_D, lambda_feat=opt.lambda_feat
-        )
-        self.criterionP = PerceptualLoss(
-            self.device, lambda_perceptual=opt.lambda_perceptual
-        )
+        if not self.opt.no_fmLoss:
+            self.criterionFM = FMLoss(
+                num_D=opt.num_D, n_layers=opt.n_layers_D, lambda_feat=opt.lambda_feat
+            )
+        if not self.opt.no_pLoss:
+            self.criterionP = PerceptualLoss(
+                self.device, lambda_perceptual=opt.lambda_perceptual
+            )
 
     def data2device(self, data_dict):
         """migrate data to device(e.g. cuda)
@@ -146,7 +148,7 @@ class Pix2PixHDModel(nn.Module):
         # get edge_map
         data_dict["edge_map"] = self.get_edge_map(data_dict["instance_map"])
 
-        loss = {}
+        losses = {"g_gan": 0, "g_fm": 0, "g_p": 0, "d_real": 0, "d_fake": 0}
 
         # Generate fake image
         feat_vector = self.netE(
@@ -156,8 +158,33 @@ class Pix2PixHDModel(nn.Module):
             (data_dict["label_map"], data_dict["edge_map"], feat_vector), dim=1
         )
         fake_images = self.netG(gen_inputs)
+        assert (
+            (-1 <= fake_images) * (fake_images <= 1)
+        ).all(), "input data to discriminator range is not from -1 to 1. Got: {}".format(
+            (fake_images.min(), fake_images.max())
+        )
 
-        return losses
+        # Discrimintor Loss = GANLoss(fake) + GANLoss(real)
+        dis_inputs_fake = torch.cat(
+            (fake_images, data_dict["label_map"], data_dict["edge_map"]), dim=1
+        )
+        dis_inputs_real = torch.cat(
+            (fake_images, data_dict["label_map"], data_dict["edge_map"]), dim=1
+        )
+        pred_fake = self.netD(dis_inputs_fake)
+        pred_real = self.netD(dis_inputs_real)
+
+        losses["d_fake"] = self.criterionGAN(pred_fake, targe_is_real=False)
+        losses["d_real"] = self.criterionGAN(pred_real, targe_is_real=True)
+
+        # Generator Loss = GANLoss(fake passability loss) + FMLoss + PerceptualLoss
+        losses["g_gan"] = self.criterionGAN(pred_fake, target_is_real=True)
+        if not self.opt.no_fmLoss:
+            losses["g_fm"] = self.criterionFM(pred_fake, pred_real)
+        if not self.opt.no_pLoss:
+            losses["g_p"] = self.criterionP(fake_images, data_dict["real_image"])
+
+        return losses, fake_images
 
     def encode_label_map(self, label_map, n_class):
         """encode label map to one-hot vector
