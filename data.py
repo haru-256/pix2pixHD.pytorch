@@ -4,14 +4,16 @@ from PIL import Image
 import numpy as np
 import random
 from torchvision import transforms
+import torch
 
 
 class Cityscapes(Dataset):
-    def __init__(self, path, phase="train"):
+    def __init__(self, path, opt, phase="train"):
         """Cityscapes datasets
 
         Args:
             path (pathlib.Path): file path of cityscapes datasets.
+            opt (argparse): option of this program
             phase (str, optional): phase. Defaults to train.
         """
 
@@ -21,17 +23,18 @@ class Cityscapes(Dataset):
             self.abs_data_path = path
 
         self.df = pd.read_csv(path)  # read csv file
+        self.opt = opt
 
     def __getitem__(self, idx):
         # read images
-        real_images = Image.open(self.df["read_images_path"][idx]).convert("RGB")
-        seg_maps = Image.open(self.df["segmentation_path"][idx])
+        real_images = Image.open(self.df["real_images_path"][idx]).convert("RGB")
+        seg_maps = Image.open(self.df["label_path"][idx])
         inst_map = Image.open(self.df["instance_path"][idx])
 
         # get params of preprocessing
         params = get_params(self.opt, real_images.size)
         # get transforms and apply
-        transforms = get_transform(self.opt, params, real_images.size)
+        transforms = get_transform(self.opt, params)
         real_tensor = transforms(real_images)
 
         transforms = get_transform(
@@ -40,7 +43,8 @@ class Cityscapes(Dataset):
         seg_tensor = (
             transforms(seg_maps) * 255.0
         )  # ToTensor converts values to range of [0, 1]
-        inst_tensor = transforms(inst_map) * 255.0
+        inst_tensor = transforms(inst_map)
+        print("inst_tenosr is:", torch.unique(inst_tensor))
 
         return real_tensor, seg_tensor, inst_tensor
 
@@ -48,7 +52,7 @@ class Cityscapes(Dataset):
         return len(self.df)
 
 
-def get_transform(self, opt, params, method=Image.BICUBIC, normalize=True):
+def get_transform(opt, params, method=Image.BICUBIC, normalize=True):
     """get transforms for input tensor
 
     Args:

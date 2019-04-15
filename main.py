@@ -46,7 +46,7 @@ def add_argument(parser):
         "--loadSize", help="scale images to this size", type=int, default=1024
     )
     parser.add_argument(
-        "--label_nc", type=int, default=35, help="# of input label channels"
+        "--label_num", type=int, default=35, help="# of input label channels"
     )
     parser.add_argument(
         "-m", "--mean", help="mean to use for noarmalization", type=float, default=0.5
@@ -65,6 +65,7 @@ def add_argument(parser):
         action="store_true",
         help="if specified, do not flip the images for data argumentation",
     )
+    parser.add_argument('--fineSize', type=int, default=512, help='then crop to this size')
     parser.add_argument(
         "--use_edge",
         action="store_true",
@@ -91,7 +92,7 @@ def add_argument(parser):
 
     # option of generator
     parser.add_argument(
-        "--netG", type=str, default="global", help="selects model to use for netG"
+        "--g_type", type=str, default="global", help="selects model to use for netG"
     )
     parser.add_argument(
         "--ngf", type=int, default=64, help="# of gen filters in first conv layer"
@@ -126,6 +127,12 @@ def add_argument(parser):
         default=0,
         help="number of epochs that we only train the outmost local enhancer",
     )
+    parser.add_argument(
+	"--use_relu",
+        action="store_true",
+        help="if specified, add relu module after 'add' in ResBolock",
+    )
+
 
     # option of discriminator
     parser.add_argument(

@@ -55,7 +55,7 @@ def define_G(
     n_local_enhancers=1,
     n_blocks_local=3,
     norm_type="instance",
-    isAffine=True,
+    isAffine=False,
     gain=0.02,
     use_relu=False,
 ):
@@ -111,7 +111,7 @@ def define_G(
     netG : torch.nn.Module
         Generator after initializie, according to g_type.
     """
-    norm_layer = get_norm_layer(norm_type=norm_type)
+    norm_layer = get_norm_layer(norm_type=norm_type, isAffine=isAffine)
     if g_type == "global":
         netG = GlobalGenerator(
             input_nc, output_nc, ngf, n_downsample_global, n_blocks_global, norm_layer
@@ -488,7 +488,7 @@ class ResnetBlock(nn.Module):
 def define_D(
     input_nc,
     ndf,
-    n_layers,
+    n_layers_D,
     device,
     norm_type="instance",
     use_sigmoid=False,
@@ -545,7 +545,7 @@ def define_D(
     norm_layer = get_norm_layer(norm_type=norm_type, isAffine=isAffine)
 
     netD = MultiscaleDiscriminator(
-        input_nc, ndf, n_layers, norm_layer, use_sigmoid, num_D, getIntermFeat
+        input_nc, ndf, n_layers_D, norm_layer, use_sigmoid, num_D, getIntermFeat
     )
 
     print("MultiscaleDiscriminator", end="\n" + "=" * 50 + "\n")

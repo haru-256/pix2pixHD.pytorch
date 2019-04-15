@@ -29,7 +29,7 @@ class Pix2PixHDModel(nn.Module):
             self.device = torch.device("cpu")
 
         # define networks respectively
-        input_nc = opt.label_map
+        input_nc = opt.label_num
         if opt.use_feature:
             input_nc += opt.feature_nc
         if opt.use_edge:
@@ -55,6 +55,7 @@ class Pix2PixHDModel(nn.Module):
             n_layers_D=opt.n_layers_D,
             device=self.device,
             isAffine=opt.isAffine,
+            num_D=opt.num_D
         )
 
         self.netE = define_E(
@@ -83,7 +84,7 @@ class Pix2PixHDModel(nn.Module):
             print("The layers that are finetuned are ", sorted(finetune_list))
         else:
             params = list(self.netG.parameters())
-        if self.use_features:
+        if self.opt.use_feature:
             params += list(self.netE.parameters())
         self.optimizer_G = torch.optim.Adam(params, lr=opt.lr, betas=(opt.beta1, 0.999))
         self.scheduler_G = LinearDecayLR(self.optimizer_G, niter_decay=opt.niter_decay)
@@ -96,7 +97,7 @@ class Pix2PixHDModel(nn.Module):
         self.scheduler_D = LinearDecayLR(self.optimizer_D, niter_decay=opt.niter_decay)
 
         # defin loss functions
-        if opt.gpu_id == 0 or opt.gpu_id == 1:
+        if opt.gpu_ids == 0 or opt.gpu_ids == 1:
             self.Tensor = torch.cuda.FloatTensor
         else:
             self.Tensor = torch.FloatTensor
