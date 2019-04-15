@@ -46,7 +46,6 @@ class Cityscapes(Dataset):
             transforms(seg_maps) * 255.0
         )  # ToTensor converts values to range of [0, 1]
         inst_tensor = transforms(inst_map)
-        print("inst_tenosr is:", torch.unique(inst_tensor))
 
         return real_tensor, seg_tensor, inst_tensor
 

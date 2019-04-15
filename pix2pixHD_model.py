@@ -155,7 +155,7 @@ class Pix2PixHDModel(nn.Module):
 
         # Generate fake image
         feat_vector = self.netE(
-            input_=data_dict["real_iamge"], inst=data_dict["instance_map"]
+            input_=data_dict["real_image"], inst=data_dict["instance_map"]
         )
         gen_inputs = torch.cat(
             (data_dict["label_map"], data_dict["edge_map"], feat_vector), dim=1
@@ -169,18 +169,22 @@ class Pix2PixHDModel(nn.Module):
 
         # Discrimintor Loss = GANLoss(fake) + GANLoss(real)
         dis_inputs_fake = torch.cat(
-            (fake_images, data_dict["label_map"], data_dict["edge_map"]), dim=1
+            (fake_images.detach(), data_dict["label_map"], data_dict["edge_map"]), dim=1
         )
         dis_inputs_real = torch.cat(
-            (fake_images, data_dict["label_map"], data_dict["edge_map"]), dim=1
+            (data_dict["real_image"], data_dict["label_map"], data_dict["edge_map"]), dim=1
         )
         pred_fake = self.netD(dis_inputs_fake)
         pred_real = self.netD(dis_inputs_real)
 
-        losses["d_fake"] = self.criterionGAN(pred_fake, targe_is_real=False)
-        losses["d_real"] = self.criterionGAN(pred_real, targe_is_real=True)
+        losses["d_fake"] = self.criterionGAN(pred_fake, target_is_real=False)
+        losses["d_real"] = self.criterionGAN(pred_real, target_is_real=True)
 
         # Generator Loss = GANLoss(fake passability loss) + FMLoss + PerceptualLoss
+        dis_inputs = torch.cat(
+            (fake_images, data_dict["label_map"], data_dict["edge_map"]), dim=1
+        )
+        pred_fake = self.netD(dis_inputs)
         losses["g_gan"] = self.criterionGAN(pred_fake, target_is_real=True)
         if not self.opt.no_fmLoss:
             losses["g_fm"] = self.criterionFM(pred_fake, pred_real)
@@ -208,8 +212,8 @@ class Pix2PixHDModel(nn.Module):
 
         oneHot_label_map = torch.FloatTensor(
             label_map.size(0), n_class, label_map.size(2), label_map.size(3)
-        ).zero_()
-        oneHot_label_map = oneHot_label_map.scatter_(1, label_map, 1)
+        ).zero_().to(self.device)
+        oneHot_label_map = oneHot_label_map.scatter_(1, label_map.long(), 1)
         assert (0.0 <= oneHot_label_map).all() and (
             oneHot_label_map <= 1.0
         ).all(), "failed at encoding to make one-hot vector: range is [{}, {}]".format(
@@ -230,7 +234,7 @@ class Pix2PixHDModel(nn.Module):
         edge_map : nn.Tensor (N, C=1, H, W)
             Edge map. Each pixel is 1 or 0. 1 is boundary.
         """
-        edge_map = torch.ByteTensor(t.size()).zero_().to(self.device)
+        edge_map = torch.ByteTensor(instance_map.size()).zero_().to(self.device)
         edge_map[:, :, :, 1:] = edge_map[:, :, :, 1:] | (
             instance_map[:, :, :, 1:] != instance_map[:, :, :, :-1]
         )
@@ -243,12 +247,7 @@ class Pix2PixHDModel(nn.Module):
         edge_map[:, :, :-1, :] = edge_map[:, :, :-1, :] | (
             instance_map[:, :, 1:, :] != instance_map[:, :, :-1, :]
         )
-        if self.opt.data_type == 16:
-            return edge_map.half()
-        else:
-            return edge_map.float()
-
-        return edge_map
+        return edge_map.float()
 
     def update_fixed_params(self):
         # after fixing the global generator for a number of iterations, also start finetuning it

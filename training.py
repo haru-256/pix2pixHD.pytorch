@@ -7,7 +7,7 @@ from fastprogress import master_bar, progress_bar
 
 
 class Trainer(object):
-    def __init__(self, updater, opt, val_dataloader):
+    def __init__(self, updater, opt, val_dataloader=None):
         """Trainer class
 
         Args:
@@ -20,7 +20,7 @@ class Trainer(object):
         # make directory
         self.opt = opt
         out = pathlib.Path(
-            "{0}/result_{1}/result_{1}_{2}".format(opt.dataset, opt.number, opt.seed)
+            "{0}/result_{1}/result_{1}_{2}".format(opt.name, opt.number, opt.seed)
         ).resolve()
         for path in list(out.parents)[::-1]:
             if not path.exists():
@@ -59,7 +59,7 @@ class Trainer(object):
         log = OrderedDict()
 
         # training loop
-        mb = master_bar(self.epoch)
+        mb = master_bar(range(self.epoch))
         for epoch in mb:
             # itterater process
             losses, models, optimizers, schedulers = self.updater.update(mb)
@@ -165,25 +165,26 @@ class Updater(object):
         ):
             data_dict = {
                 "real_image": real_image.to(self.device),
-                "labelmap": label_map.to(self.device),
+                "label_map": label_map.to(self.device),
                 "instance_map": instance_map.to(self.device),
             }
-            # zeroes the gradient buffers of all parameters.
-            self.model.optimizer_G.zero_grad()
-            self.model.optimizer_D.zero_grad()
 
             # forward process in Pix2PixHD
             loss_dict, gen_images = self.model(data_dict)
 
             # calculate final loss scalar
-            loss_D = loss_dict["d_real"] + loss_dict["d_fake"]
+            loss_D = (loss_dict["d_real"] + loss_dict["d_fake"]) * 0.5
             loss_G = loss_dict["g_gan"] + loss_dict["g_fm"] + loss_dict["g_p"]
+            assert loss_D.dim()==0 and loss_G.dim()==0, "Loss is not scalr. Got shape is : {}, {}".format(loss_D.shape, loss_G.shape)
 
-            # backward pass
+            # backward Discrimintor
+            self.model.optimizer_D.zero_grad()
             loss_D.backward()
-            loss_G.backward()
-            # update parameters, respectively
             self.model.optimizer_D.step()
+
+            # backward Generator
+            self.model.optimizer_G.zero_grad()
+            loss_G.backward()
             self.model.optimizer_G.step()
 
             epoch_loss_D += loss_D

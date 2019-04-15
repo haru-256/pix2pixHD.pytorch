@@ -10,6 +10,7 @@ def add_argument(parser):
 
     # add argument
     # base option of experiments
+    parser.add_argument('--name', type=str, default='label2city', help='name of the experiment. It decides where to store samples and models')
     parser.add_argument("-s", "--seed", help="seed", type=int, required=True)
     parser.add_argument(
         "-n", "--number", help="the number of experiments.", type=int, required=True
@@ -49,8 +50,9 @@ def add_argument(parser):
     parser.add_argument(
         "--loadSize", help="scale images to this size", type=int, default=1024
     )
+    parser.add_argument('--fineSize', type=int, default=512, help='then crop to this size')
     parser.add_argument(
-        "--label_nc", type=int, default=35, help="# of input label channels"
+        "--label_num", type=int, default=35, help="# of input label channels"
     )
     parser.add_argument(
         "-m", "--mean", help="mean to use for noarmalization", type=float, default=0.5
@@ -95,7 +97,7 @@ def add_argument(parser):
 
     # option of generator
     parser.add_argument(
-        "--netG", type=str, default="global", help="selects model to use for netG"
+        "--g_type", type=str, default="global", help="selects model to use for netG"
     )
     parser.add_argument(
         "--ngf", type=int, default=64, help="# of gen filters in first conv layer"
@@ -130,6 +132,8 @@ def add_argument(parser):
         default=0,
         help="number of epochs that we only train the outmost local enhancer",
     )
+    parser.add_argument(
+        "--use_relu", action="store_true", help="add ReLU Module after add processing in ResBlock")
 
     # option of discriminator
     parser.add_argument(

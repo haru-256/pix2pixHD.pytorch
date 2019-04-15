@@ -3,3 +3,4 @@ __pycache__/
 *.png
 datasets/
 debug.ipynb
+label2city/

@@ -81,9 +81,9 @@ class GANLoss(nn.Module):
                 self.fake_label.numel() != input_.numel()
             )
             if create_label:
-                self.fake_label = self.Tensor(input.size()).fill_(self.fake_label)
+                self.fake_label = self.Tensor(input_.size()).fill_(self.target_fake_label)
                 self.fake_label.requires_grad = False
-            target_tensor = self.fake_label_var
+            target_tensor = self.fake_label
             assert (
                 target_tensor.unique().item() == self.target_fake_label
             ), "target_tensor does not match target_fake_label : {}".format(

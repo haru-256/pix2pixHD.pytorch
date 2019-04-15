@@ -960,7 +960,7 @@ class Encoder(nn.Module):
         for i in inst_list:
             for b in range(input_.size()[0]):
                 # get indices of pixel with instance ID: i
-                indices = (inst[b] == int(i)).nonzero()  # n x 4
+                indices = (inst[b:b+1] == int(i)).nonzero()  # n x 4
                 # n is Number of pixels corresponding to i,
                 # 4 is number of inst dimensions
 
