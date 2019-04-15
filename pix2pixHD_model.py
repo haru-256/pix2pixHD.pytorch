@@ -21,9 +21,9 @@ class Pix2PixHDModel(nn.Module):
         super(Pix2PixHDModel, self).__init__()
         self.opt = opt
 
-        if opt.gpu_id == 0:
+        if opt.gpu_ids == 0:
             self.device = torch.device("cuda:0")
-        elif opt.gpu_id == 1:
+        elif opt.gpu_ids == 1:
             self.device = torch.device("cuda:1")
         else:
             self.device = torch.device("cpu")
