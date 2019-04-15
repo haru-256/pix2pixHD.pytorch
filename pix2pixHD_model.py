@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
 from utils import LinearDecayLR
-import numpy as np
 from model import define_G, define_D, define_E
 from loss import GANLoss, PerceptualLoss, FMLoss
+import torchvision
+import math
+import matplotlib.pyplot as plt
 
 
 class Pix2PixHDModel(nn.Module):
@@ -260,3 +262,66 @@ class Pix2PixHDModel(nn.Module):
         )
         if self.opt.verbose:
             print("------------ Now also finetuning global generator -----------")
+
+    def save_gen_image(
+        self, epoch, val_dataloader, root_dir4gen=None, device=None, mean=0.5, std=0.5
+    ):
+        """
+        save generator images
+
+        Parmameters
+        -------------------
+        epoch: int
+            number of epochs
+        gen: torch.nn.Module
+            generator model
+        val_dataloader: torch.utils.data.DataLoader
+            dataloader for val
+        root_dir4gen: pathlib.Path
+            path to save generate images directory
+        device: torch.device
+        mean: float
+            mean that is used to normalize inputs data.
+        std: float
+            std that is used to normalize inputs data.
+        """
+        # self.netG.train()  # apply Dropout and BatchNorm during inference as well
+        # self.netE.train()
+        with torch.no_grad():
+            for real_image, label_map, inst_map in val_dataloader:
+                data_dict = {
+                    "real_image": real_image.to(self.device),
+                    "labelmap": label_map.to(self.device),
+                    "instance_map": inst_map.to(self.device),
+                }
+                # Generate fake image
+                feat_vector = self.netE(
+                    input_=data_dict["real_image"], inst=data_dict["instance_map"]
+                )
+                gen_inputs = torch.cat(
+                    (data_dict["label_map"], data_dict["edge_map"], feat_vector), dim=1
+                )
+                fake_images = self.netG(gen_inputs).cpu()
+                assert (
+                    (-1 <= fake_images) * (fake_images <= 1)
+                ).all(), "input data to discriminator range is not from -1 to 1. Got: {}".format(
+                    (fake_images.min(), fake_images.max())
+                )
+
+        total = fake_images.shape[0]
+        ncol = int(math.sqrt(total))
+        nrow = math.ceil(float(total) / ncol)
+        images = torchvision.utils.make_grid(
+            fake_images, normalize=False, nrow=nrow, padding=1
+        )
+        images = images * std + mean
+        plt.imshow(images.numpy().transpose(1, 2, 0))
+        plt.axis("off")
+        plt.title("Epoch: {}".format(epoch))
+        plt.tight_layout()
+        plt.savefig(
+            root_dir4gen / "epoch{:0>4}.png".format(epoch),
+            bbox_inches="tight",
+            pad_inches=0.05,
+        )
+

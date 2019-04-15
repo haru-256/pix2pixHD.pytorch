@@ -1,4 +1,5 @@
 from copy import deepcopy
+import torch
 
 
 class LinearDecayLR(object):
@@ -84,3 +85,4 @@ class LinearDecayLR(object):
         self.old_lrs = next_lr
 
         return next_lr
+

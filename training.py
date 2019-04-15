@@ -13,9 +13,7 @@ class Trainer(object):
         Args:
             updater (Updater): Updater. This executes one epoch process,
                 such as updating parameters
-            out (string): Dir path to save experiment results.
-                e.g.) "result_{number}/result_{number}_{seed}"
-            epoch (int): number of epochs.
+            opt (argparse): option of this program
 
         """
         # make directory
@@ -32,7 +30,6 @@ class Trainer(object):
         # put arguments into file
         with open(out / "args.txt", "w") as f:
             f.write(str(opt))
-        print("arguments:", opt)
 
         # make dir to save model & image
         self.model_dir = out / "model"
@@ -45,8 +42,13 @@ class Trainer(object):
         self.epoch = self.opt.epoch
         self.updater = updater
 
+        torch.backends.cudnn.benchmark = True
+
     def run(self):
         """execute training loop.
+
+        Returns:
+            log (OrderDict): training log. This contains Generator loss and Discriminator Loss
         """
         since = datetime.datetime.now()
         # initialize log
@@ -79,6 +81,15 @@ class Trainer(object):
                 self.model_dir / "pix2pixHD_{}epoch.tar".format(epoch + 1),
             )
 
+            # save generate images of validation
+            self.updater.model.save_gen_image(
+                epoch,
+                root_dir4gen=self.image_dir,
+                device=self.updater.model.device,
+                mean=self.opt.mean,
+                std=self.opt.std,
+            )
+
             # instead of only training the local enhancer, train the entire network after certain iterations
             if (self.opt.niter_fix_global != 0) and (
                 self.epoch == self.opt.niter_fix_global
@@ -109,7 +120,7 @@ class Trainer(object):
 
 
 class Updater(object):
-    def __init__(self, dataloader, model, device, **kwargs):
+    def __init__(self, dataloader, model):
         """Updater class.
 
        This class executes one epoch process, such as updating parameters.
@@ -118,19 +129,12 @@ class Updater(object):
             dataloader (torch.utils.data.DataLoader):
                 Dataloader that provides minibatch datasets.
             model (pix2pixHD.Pix2PixHD_model):
-                pix2pixHD.Pix2PixHD_model. This model has to have optimizers.
-            device (torch.device): device object of data destination.
+                pix2pixHD.Pix2PixHD_model. This model has to have optimizers and device.
 
-        Returns:
-            losses (dict): dictionary of loss of discriminator and generator.
-                each key is dis and gen.
-            models (dict): dictionary of model of discriminator, generator and encoder.
-                each key is dis, gen and en.
-            optimizers (dict): dictionary of optimizer of discriminator and generator.
         """
         self.dataloader = dataloader
         self.model = model
-        self.device = device
+        self.device = self.model.device
 
     def update(self, master_bar):
         """update parameters while one epoch.
@@ -150,12 +154,12 @@ class Updater(object):
         """
         epoch_loss_D = 0.0
         epoch_loss_G = 0.0
-        for real_image, labe_map, instance_map in progress_bar(
+        for real_image, label_map, instance_map in progress_bar(
             self.dataloader, parent=master_bar
         ):
             data_dict = {
                 "real_image": real_image.to(self.device),
-                "labelmap": labe_map.to(self.device),
+                "labelmap": label_map.to(self.device),
                 "instance_map": instance_map.to(self.device),
             }
             # zeroes the gradient buffers of all parameters.
