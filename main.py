@@ -10,7 +10,12 @@ def add_argument(parser):
 
     # add argument
     # base option of experiments
-    parser.add_argument('--name', type=str, default='label2city', help='name of the experiment. It decides where to store samples and models')
+    parser.add_argument(
+        "--name",
+        type=str,
+        default="label2city",
+        help="name of the experiment. It decides where to store samples and models",
+    )
     parser.add_argument("-s", "--seed", help="seed", type=int, required=True)
     parser.add_argument(
         "-n", "--number", help="the number of experiments.", type=int, required=True
@@ -50,7 +55,9 @@ def add_argument(parser):
     parser.add_argument(
         "--loadSize", help="scale images to this size", type=int, default=1024
     )
-    parser.add_argument('--fineSize', type=int, default=512, help='then crop to this size')
+    parser.add_argument(
+        "--fineSize", type=int, default=512, help="then crop to this size"
+    )
     parser.add_argument(
         "--label_num", type=int, default=35, help="# of input label channels"
     )
@@ -133,7 +140,10 @@ def add_argument(parser):
         help="number of epochs that we only train the outmost local enhancer",
     )
     parser.add_argument(
-        "--use_relu", action="store_true", help="add ReLU Module after add processing in ResBlock")
+        "--use_relu",
+        action="store_true",
+        help="add ReLU Module after add processing in ResBlock",
+    )
 
     # option of discriminator
     parser.add_argument(
@@ -228,7 +238,7 @@ def add_argument(parser):
     return parser
 
 
-if __name__ == "__main":
+if __name__ == "__main__":
     # make parser
     parser = argparse.ArgumentParser(
         prog="pix2pixHD",
