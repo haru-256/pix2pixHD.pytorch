@@ -8,13 +8,12 @@ import torch
 
 
 class Cityscapes(Dataset):
-    def __init__(self, path, opt, phase="train"):
+    def __init__(self, path, opt, phase="train", valSize=None):
         """Cityscapes datasets
 
         Args:
             path (pathlib.Path): file path of cityscapes datasets.
             opt (argparse): option of this program
-            phase (str, optional): phase. Defaults to train.
         """
 
         if not path.is_absolute():
@@ -23,6 +22,9 @@ class Cityscapes(Dataset):
             self.abs_data_path = path
 
         self.df = pd.read_csv(path)  # read csv file
+        if phase == "val":
+            assert valSize is None, "valifation size is None. this must  be integer"
+            self.df = self.df.iloc[:valSize]
         self.opt = opt
 
     def __getitem__(self, idx):

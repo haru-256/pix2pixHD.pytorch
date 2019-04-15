@@ -7,13 +7,14 @@ from fastprogress import master_bar, progress_bar
 
 
 class Trainer(object):
-    def __init__(self, updater, opt):
+    def __init__(self, updater, opt, val_dataloader):
         """Trainer class
 
         Args:
             updater (Updater): Updater. This executes one epoch process,
                 such as updating parameters
             opt (argparse): option of this program
+            val_dataloader (dataloader): dataloader of validation datasets
 
         """
         # make directory
@@ -41,6 +42,9 @@ class Trainer(object):
 
         self.epoch = self.opt.epoch
         self.updater = updater
+
+        if val_dataloader:
+            self.val_dataloader = val_dataloader
 
         torch.backends.cudnn.benchmark = True
 
@@ -82,13 +86,15 @@ class Trainer(object):
             )
 
             # save generate images of validation
-            self.updater.model.save_gen_image(
-                epoch,
-                root_dir4gen=self.image_dir,
-                device=self.updater.model.device,
-                mean=self.opt.mean,
-                std=self.opt.std,
-            )
+            if not self.opt.no_save_genImages:
+                self.updater.model.save_gen_image(
+                    epoch,
+                    val_dataloader=self.val_dataloader,
+                    root_dir4gen=self.image_dir,
+                    device=self.updater.model.device,
+                    mean=self.opt.mean,
+                    std=self.opt.std,
+                )
 
             # instead of only training the local enhancer, train the entire network after certain iterations
             if (self.opt.niter_fix_global != 0) and (

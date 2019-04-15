@@ -55,7 +55,7 @@ class Pix2PixHDModel(nn.Module):
             n_layers_D=opt.n_layers_D,
             device=self.device,
             isAffine=opt.isAffine,
-            num_D=opt.num_D
+            num_D=opt.num_D,
         )
 
         self.netE = define_E(
@@ -274,8 +274,6 @@ class Pix2PixHDModel(nn.Module):
         -------------------
         epoch: int
             number of epochs
-        gen: torch.nn.Module
-            generator model
         val_dataloader: torch.utils.data.DataLoader
             dataloader for val
         root_dir4gen: pathlib.Path

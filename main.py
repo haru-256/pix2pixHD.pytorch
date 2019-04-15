@@ -3,6 +3,7 @@ from training import Trainer, Updater
 from data import Cityscapes
 from torch.utils.data import DataLoader
 from pix2pixHD_model import Pix2PixHDModel
+import pathlib
 
 
 def add_argument(parser):
@@ -39,6 +40,9 @@ def add_argument(parser):
     parser.add_argument(
         "--nThreads", default=2, type=int, help="# threads for loading data"
     )
+    parser.add_argument(
+        "--no_save_genImages", action="store_false", help="do not save generate images"
+    )
 
     # for data
     parser.add_argument("--dataroot", type=str, default="./datasets/cityscapes/")
@@ -46,7 +50,7 @@ def add_argument(parser):
         "--loadSize", help="scale images to this size", type=int, default=1024
     )
     parser.add_argument(
-        "--label_num", type=int, default=35, help="# of input label channels"
+        "--label_nc", type=int, default=35, help="# of input label channels"
     )
     parser.add_argument(
         "-m", "--mean", help="mean to use for noarmalization", type=float, default=0.5
@@ -65,7 +69,6 @@ def add_argument(parser):
         action="store_true",
         help="if specified, do not flip the images for data argumentation",
     )
-    parser.add_argument('--fineSize', type=int, default=512, help='then crop to this size')
     parser.add_argument(
         "--use_edge",
         action="store_true",
@@ -92,7 +95,7 @@ def add_argument(parser):
 
     # option of generator
     parser.add_argument(
-        "--g_type", type=str, default="global", help="selects model to use for netG"
+        "--netG", type=str, default="global", help="selects model to use for netG"
     )
     parser.add_argument(
         "--ngf", type=int, default=64, help="# of gen filters in first conv layer"
@@ -127,12 +130,6 @@ def add_argument(parser):
         default=0,
         help="number of epochs that we only train the outmost local enhancer",
     )
-    parser.add_argument(
-	"--use_relu",
-        action="store_true",
-        help="if specified, add relu module after 'add' in ResBolock",
-    )
-
 
     # option of discriminator
     parser.add_argument(
@@ -242,18 +239,28 @@ if __name__ == "__main":
     print("=" * 60)
 
     # dataset
-    trainData_path = (opt.dataroot / "train" / "cityscapes_train.csv").resolve()
-    dataset = Cityscapes(path=trainData_path, phase="train")
-    print("Dataset path :", trainData_path)
+    dataroot = pathlib.Path(opt.dataroot)
+    trainData_path = (dataroot / "train" / "cityscapes_train.csv").resolve()
+    valData_path = (dataroot / "val" / "cityscapes_train.csv").resolve()
+    train_dataset = Cityscapes(path=trainData_path, opt=opt)
+    val_dataset = Cityscapes(path=valData_path, opt=opt, phase="val", valSize=9)
+    print("Train Dataset Path :", trainData_path)
+    print("Val Dataset Path :", valData_path)
 
     # make model
     pix2pixHD = Pix2PixHDModel(opt)
 
     # dataloader
     train_dataloader = DataLoader(
-        dataset=dataset,
+        dataset=train_dataset,
         batch_size=opt.batch_size,
         shuffle=True,
+        numworkers=opt.nThreads,
+    )
+    val_dataloader = DataLoader(
+        dataset=val_dataset,
+        batch_size=len(val_dataset),
+        shuffle=False,
         numworkers=opt.nThreads,
     )
 
@@ -261,7 +268,7 @@ if __name__ == "__main":
     updater = Updater(dataloader=train_dataloader, model=pix2pixHD)
 
     # trainer
-    trainer = Trainer(updater, opt)
+    trainer = Trainer(updater, opt, val_dataloader=val_dataloader)
 
     # run
     log = trainer.run()
