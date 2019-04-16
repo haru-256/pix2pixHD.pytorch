@@ -303,8 +303,8 @@ data_dict
                 self.data2device(data_dict)
                 # encode label_map
                 data_dict["label_map"] = self.encode_label_map(
-                        data_dict["label_map"], self.opt.label_num
-                    )
+                    data_dict["label_map"], self.opt.label_num
+                )
                 # get edge_map
                 data_dict["edge_map"] = self.get_edge_map(data_dict["instance_map"])
 
@@ -331,7 +331,7 @@ data_dict
         images = images * std + mean
         plt.imshow(images.numpy().transpose(1, 2, 0))
         plt.axis("off")
-        plt.title("Epoch: {}".format(epoch))
+        plt.title("Epoch: {}".format(epoch + 1))
         plt.tight_layout()
         plt.savefig(
             root_dir4gen / "epoch{:0>4}.png".format(epoch),

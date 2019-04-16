@@ -103,7 +103,7 @@ class Trainer(object):
                 self.model.update_fixed_params()
 
             # linearly decay learning rate after certain iterations
-            if epoch > self.opt.niter:
+            if epoch > self.opt.niter_decay:
                 self.model.scheduler_D.step()
                 self.model.scheduler_G.step()
 
