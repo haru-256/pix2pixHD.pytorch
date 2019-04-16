@@ -26,6 +26,7 @@ class Cityscapes(Dataset):
             assert valSize is not None, "validation size is None. this must  be integer"
             self.df = self.df.iloc[:valSize]
         self.opt = opt
+        self.phase = phase
 
     def __getitem__(self, idx):
         # read images
@@ -34,7 +35,10 @@ class Cityscapes(Dataset):
         inst_map = Image.open(self.df["instance_path"][idx])
 
         # get params of preprocessing
-        params = get_params(self.opt, real_images.size)
+        params = get_params(self.opt, real_images.size, self.phase)
+        assert not (
+            self.phase == "val" and params["flip"]
+        ), "do not flip in case of phase == validasion"
         # get transforms and apply
         transforms = get_transform(self.opt, params)
         real_tensor = transforms(real_images)
@@ -101,12 +105,13 @@ def get_transform(opt, params, method=Image.BICUBIC, normalize=True):
     return transforms.Compose(transform_list)
 
 
-def get_params(opt, size):
+def get_params(opt, size, phase):
     """get parameters of "crop_pos" and 'scale_width_and_crop'
 
     Args:
         opt (argparser): arguments of this program
         size (tuple): size of images
+        phase (string): phase of process
 
     Returns:
         params (dictionary): dictionary of parameters.
@@ -126,6 +131,8 @@ def get_params(opt, size):
     y = random.randint(0, np.maximum(0, new_h - opt.fineSize))
 
     flip = random.random() > 0.5
+    if phase == "val":
+        flip = False
     return {"crop_pos": (x, y), "flip": flip}
 
 

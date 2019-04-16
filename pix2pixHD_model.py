@@ -227,6 +227,9 @@ class Pix2PixHDModel(nn.Module):
         ).all(), "failed at encoding to make one-hot vector: range is [{}, {}]".format(
             oneHot_label_map.min(), oneHot_label_map.max()
         )
+        assert (
+            torch.unique(oneHot_label_map).numel() == 2
+        ), "label map is not one-hot vector"
         return oneHot_label_map
 
     def get_edge_map(self, instance_map):
