@@ -252,12 +252,13 @@ if __name__ == "__main__":
     print("arguments:", opt)
     print("=" * 60)
 
-    # dataset
+    # data pass
     dataroot = pathlib.Path(opt.dataroot)
     trainData_path = (dataroot / "train" / "cityscapes_train.csv").resolve()
     valData_path = (dataroot / "val" / "cityscapes_val.csv").resolve()
+    # dataset
     train_dataset = Cityscapes(path=trainData_path, opt=opt)
-    val_dataset = Cityscapes(path=valData_path, opt=opt, phase="val", valSize=9)
+    val_dataset = Cityscapes(path=valData_path, opt=opt, phase="val", valSize=4)
     print("Train Dataset Path :", trainData_path)
     print("Val Dataset Path :", valData_path)
 

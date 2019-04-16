@@ -231,7 +231,7 @@ class Pix2PixHDModel(nn.Module):
 
     def get_edge_map(self, instance_map):
         """make edge map and return edge map
-
+data_dict
         Parameters
         ----------
         instance_map : nn.Tensor (N, C=1, H, W)
@@ -300,6 +300,14 @@ class Pix2PixHDModel(nn.Module):
                     "label_map": label_map.to(self.device),
                     "instance_map": inst_map.to(self.device),
                 }
+                self.data2device(data_dict)
+                # encode label_map
+                data_dict["label_map"] = self.encode_label_map(
+                        data_dict["label_map"], self.opt.label_num
+                    )
+                # get edge_map
+                data_dict["edge_map"] = self.get_edge_map(data_dict["instance_map"])
+
                 # Generate fake image
                 feat_vector = self.netE(
                     input_=data_dict["real_image"], inst=data_dict["instance_map"]
