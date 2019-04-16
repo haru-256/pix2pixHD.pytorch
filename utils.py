@@ -1,4 +1,5 @@
 from copy import deepcopy
+from tqdm import tqdm
 import torch
 
 
@@ -78,9 +79,9 @@ class LinearDecayLR(object):
         next_lr = []
         for old_lr, initial_lr in zip(self.old_lrs, self.initial_lrs):
             next_lr.append(self.decay_lr(old_lr, initial_lr))
-        print("=" * 60)
-        print("Update learning rate: {} -> {}".format(self.old_lrs, next_lr))
-        print("=" * 60)
+        tqdm.write("=" * 60)
+        tqdm.write("Update learning rate: {} -> {}".format(self.old_lrs, next_lr))
+        tqdm.write("=" * 60)
 
         self.old_lrs = next_lr
 

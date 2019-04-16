@@ -6,6 +6,7 @@ from loss import GANLoss, PerceptualLoss, FMLoss
 import torchvision
 import math
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 
 class Pix2PixHDModel(nn.Module):
@@ -30,9 +31,9 @@ class Pix2PixHDModel(nn.Module):
 
         # define networks respectively
         input_nc = opt.label_num
-        if opt.use_feature:
+        if not opt.no_use_feature:
             input_nc += opt.feature_nc
-        if opt.use_edge:
+        if not opt.no_use_edge:
             input_nc += 1
         self.netG = define_G(
             input_nc=input_nc,
@@ -45,7 +46,7 @@ class Pix2PixHDModel(nn.Module):
         )
 
         input_nc = opt.output_nc
-        if opt.use_edge:
+        if not opt.no_use_edge:
             input_nc += opt.label_num + 1
         else:
             input_nc += opt.label_num
@@ -84,7 +85,7 @@ class Pix2PixHDModel(nn.Module):
             print("The layers that are finetuned are ", sorted(finetune_list))
         else:
             params = list(self.netG.parameters())
-        if self.opt.use_feature:
+        if not self.opt.no_use_feature:
             params += list(self.netE.parameters())
         self.optimizer_G = torch.optim.Adam(params, lr=opt.lr, betas=(opt.beta1, 0.999))
         self.scheduler_G = LinearDecayLR(self.optimizer_G, niter_decay=opt.niter_decay)
@@ -102,7 +103,9 @@ class Pix2PixHDModel(nn.Module):
         else:
             self.Tensor = torch.FloatTensor
 
-        self.criterionGAN = GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
+        self.criterionGAN = GANLoss(
+            self.device, use_lsgan=not opt.no_lsgan, tensor=self.Tensor
+        )
         if not self.opt.no_fmLoss:
             self.criterionFM = FMLoss(
                 num_D=opt.num_D, n_layers=opt.n_layers_D, lambda_feat=opt.lambda_feat
@@ -172,7 +175,8 @@ class Pix2PixHDModel(nn.Module):
             (fake_images.detach(), data_dict["label_map"], data_dict["edge_map"]), dim=1
         )
         dis_inputs_real = torch.cat(
-            (data_dict["real_image"], data_dict["label_map"], data_dict["edge_map"]), dim=1
+            (data_dict["real_image"], data_dict["label_map"], data_dict["edge_map"]),
+            dim=1,
         )
         pred_fake = self.netD(dis_inputs_fake)
         pred_real = self.netD(dis_inputs_real)
@@ -210,9 +214,13 @@ class Pix2PixHDModel(nn.Module):
             one-hot vector label map.
         """
 
-        oneHot_label_map = torch.FloatTensor(
-            label_map.size(0), n_class, label_map.size(2), label_map.size(3)
-        ).zero_().to(self.device)
+        oneHot_label_map = (
+            torch.FloatTensor(
+                label_map.size(0), n_class, label_map.size(2), label_map.size(3)
+            )
+            .zero_()
+            .to(self.device)
+        )
         oneHot_label_map = oneHot_label_map.scatter_(1, label_map.long(), 1)
         assert (0.0 <= oneHot_label_map).all() and (
             oneHot_label_map <= 1.0
@@ -261,7 +269,7 @@ class Pix2PixHDModel(nn.Module):
             self.optimizer_G, niter_decay=self.opt.niter_decay
         )
         if self.opt.verbose:
-            print("------------ Now also finetuning global generator -----------")
+            tqdm.write("------------ Now also finetuning global generator -----------")
 
     def save_gen_image(
         self, epoch, val_dataloader, root_dir4gen=None, device=None, mean=0.5, std=0.5
@@ -289,7 +297,7 @@ class Pix2PixHDModel(nn.Module):
             for real_image, label_map, inst_map in val_dataloader:
                 data_dict = {
                     "real_image": real_image.to(self.device),
-                    "labelmap": label_map.to(self.device),
+                    "label_map": label_map.to(self.device),
                     "instance_map": inst_map.to(self.device),
                 }
                 # Generate fake image

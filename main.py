@@ -41,13 +41,13 @@ def add_argument(parser):
         " -1 is means don't use gpu",
         choices=[-1, 0, 1],
         type=int,
-        default=0,
+        default=1,
     )
     parser.add_argument(
         "--nThreads", default=2, type=int, help="# threads for loading data"
     )
     parser.add_argument(
-        "--no_save_genImages", action="store_false", help="do not save generate images"
+        "--no_save_genImages", action="store_true", help="do not save generate images"
     )
 
     # for data
@@ -79,9 +79,9 @@ def add_argument(parser):
         help="if specified, do not flip the images for data argumentation",
     )
     parser.add_argument(
-        "--use_edge",
+        "--no_use_edge",
         action="store_true",
-        help="if specified, use edge map as input to model",
+        help="if specified, do not use edge map as input to model",
     )
 
     # base option of models
@@ -161,9 +161,9 @@ def add_argument(parser):
 
     # option of encoder
     parser.add_argument(
-        "--use_feature",
+        "--no_use_feature",
         action="store_true",
-        help="if specified, add encoded instance features as input",
+        help="do not use feature.",
     )
     parser.add_argument(
         "--feature_nc", type=int, default=3, help="vector length for encoded features"
@@ -249,13 +249,13 @@ if __name__ == "__main__":
     )
     opt = add_argument(parser).parse_args()
     print("=" * 60)
-    print("=" * 60, "\n", "arguments:", opt)
+    print("arguments:", opt)
     print("=" * 60)
 
     # dataset
     dataroot = pathlib.Path(opt.dataroot)
     trainData_path = (dataroot / "train" / "cityscapes_train.csv").resolve()
-    valData_path = (dataroot / "val" / "cityscapes_train.csv").resolve()
+    valData_path = (dataroot / "val" / "cityscapes_val.csv").resolve()
     train_dataset = Cityscapes(path=trainData_path, opt=opt)
     val_dataset = Cityscapes(path=valData_path, opt=opt, phase="val", valSize=9)
     print("Train Dataset Path :", trainData_path)
@@ -269,13 +269,13 @@ if __name__ == "__main__":
         dataset=train_dataset,
         batch_size=opt.batch_size,
         shuffle=True,
-        numworkers=opt.nThreads,
+        num_workers=opt.nThreads,
     )
     val_dataloader = DataLoader(
         dataset=val_dataset,
         batch_size=len(val_dataset),
         shuffle=False,
-        numworkers=opt.nThreads,
+        num_workers=opt.nThreads,
     )
 
     # updater

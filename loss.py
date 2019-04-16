@@ -6,6 +6,7 @@ from model import Vgg19
 class GANLoss(nn.Module):
     def __init__(
         self,
+        device,
         use_lsgan=True,
         target_real_label=1.0,
         target_fake_label=0.0,
@@ -15,6 +16,9 @@ class GANLoss(nn.Module):
 
         Parameters
         ----------
+        device : torch.device
+            device object
+
         use_lsgan : bool, optional
             whether criterion is lsgan or vanilla gan
             (the default is True, which [default_description])
@@ -39,6 +43,8 @@ class GANLoss(nn.Module):
         self.real_label = None
         self.fake_label = None
         self.Tensor = tensor
+        self.device = device
+
         if use_lsgan:
             self.loss = nn.MSELoss()
         else:
@@ -90,7 +96,7 @@ class GANLoss(nn.Module):
                 self.target_fake_label
             )
 
-        return target_tensor
+        return target_tensor.to(self.device)
 
     def forward(self, input_, target_is_real):
         """forward

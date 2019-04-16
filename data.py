@@ -23,7 +23,7 @@ class Cityscapes(Dataset):
 
         self.df = pd.read_csv(path)  # read csv file
         if phase == "val":
-            assert valSize is None, "valifation size is None. this must  be integer"
+            assert valSize is not None, "validation size is None. this must  be integer"
             self.df = self.df.iloc[:valSize]
         self.opt = opt
 

@@ -3,7 +3,7 @@ import json
 import datetime
 from collections import OrderedDict
 import torch
-from fastprogress import master_bar, progress_bar
+from tqdm import tqdm
 
 
 class Trainer(object):
@@ -59,10 +59,10 @@ class Trainer(object):
         log = OrderedDict()
 
         # training loop
-        mb = master_bar(range(self.epoch))
-        for epoch in mb:
+        epochs = tqdm(range(self.epoch), desc="Epoch", unit='epoch')
+        for epoch in epochs:
             # itterater process
-            losses, models, optimizers, schedulers = self.updater.update(mb)
+            losses, models, optimizers, schedulers = self.updater.update()
 
             # preserve train log & print train loss
             log["epoch_{}".format(epoch + 1)] = OrderedDict(
@@ -107,14 +107,10 @@ class Trainer(object):
                 self.model.scheduler_D.step()
                 self.model.scheduler_G.step()
 
-            mb.first_bar.comment = "epoch stat"
-
             # print loss
-            mb.write(
-                "Epoch: {} GenLoss: {:.4f} DisLoss: {:.4f}".format(
-                    epoch + 1, losses["gen"], losses["dis"]
-                )
-            )
+            tqdm.write('Epoch: {} GenLoss: {:.4f} DisLoss: {:.4f}'.format(
+                            epoch+1, losses["gen"], losses["dis"]))
+            tqdm.write("-"*60)
 
         time_elapsed = datetime.datetime.now() - since
         print("Training complete in {}".format(time_elapsed))
@@ -142,11 +138,8 @@ class Updater(object):
         self.model = model
         self.device = self.model.device
 
-    def update(self, master_bar):
+    def update(self):
         """update parameters while one epoch.
-
-        Args:
-            master_bar (fastprogress.master_bar): master_bar that has epoch.
 
         Returns:
             losses (dict): dictionary of loss of discriminator and generator.
@@ -160,9 +153,8 @@ class Updater(object):
         """
         epoch_loss_D = 0.0
         epoch_loss_G = 0.0
-        for real_image, label_map, instance_map in progress_bar(
-            self.dataloader, parent=master_bar
-        ):
+        iteration = tqdm(self.dataloader,desc="Iteration", unit='iter')
+        for real_image, label_map, instance_map in iteration:
             data_dict = {
                 "real_image": real_image.to(self.device),
                 "label_map": label_map.to(self.device),
@@ -189,8 +181,6 @@ class Updater(object):
 
             epoch_loss_D += loss_D
             epoch_loss_G += loss_G
-
-            master_bar.child.comment = f"iteration stat"
 
         losses = {
             "dis": epoch_loss_D.item() / len(self.dataloader),
