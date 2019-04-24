@@ -4,3 +4,4 @@ __pycache__/
 datasets/
 debug.ipynb
 label2city/
+label2city_256/

@@ -332,7 +332,8 @@ data_dict
             fake_images, normalize=False, nrow=nrow, padding=1
         )
         images = images * std + mean
-        plt.figure(figsize=(16, 12))
+        plt.figure(figsize=(12, 9))
+        # plt.figure(figsize=(16, 12))
         plt.imshow(images.numpy().transpose(1, 2, 0))
         plt.axis("off")
         plt.title("Epoch: {}".format(epoch + 1))
@@ -343,4 +344,5 @@ data_dict
             pad_inches=0.05,
             dpi=200,
         )
+        plt.close()
 

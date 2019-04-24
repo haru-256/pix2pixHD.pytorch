@@ -4,6 +4,7 @@ import datetime
 from collections import OrderedDict
 import torch
 from tqdm import tqdm
+import pickle
 
 
 class Trainer(object):
@@ -29,6 +30,8 @@ class Trainer(object):
             out.mkdir()
 
         # put arguments into file
+        with open(out / "args.pkl", "wb") as f:
+            pickle.dump(opt, f)
         with open(out / "args.txt", "w") as f:
             f.write(str(opt))
 
@@ -59,7 +62,7 @@ class Trainer(object):
         log = OrderedDict()
 
         # training loop
-        epochs = tqdm(range(self.epoch), desc="Epoch", unit='epoch')
+        epochs = tqdm(range(self.epoch), desc="Epoch", unit="epoch")
         for epoch in epochs:
             # itterater process
             losses, models, optimizers, schedulers = self.updater.update()
@@ -75,6 +78,7 @@ class Trainer(object):
                     "epoch": epoch,
                     "dis_model_state_dict": models["dis"].state_dict(),
                     "gen_model_state_dict": models["gen"].state_dict(),
+                    "en_model_state_dict": models["en"].state_dict(),
                     "dis_optim_state_dict": optimizers["dis"].state_dict(),
                     "gen_optim_state_dict": optimizers["gen"].state_dict(),
                     "dis_loss": losses["dis"],
@@ -100,17 +104,20 @@ class Trainer(object):
             if (self.opt.niter_fix_global != 0) and (
                 self.epoch == self.opt.niter_fix_global
             ):
-                self.model.update_fixed_params()
+                self.updater.model.update_fixed_params()
 
             # linearly decay learning rate after certain iterations
             if epoch > self.opt.niter_decay:
-                self.model.scheduler_D.step()
-                self.model.scheduler_G.step()
+                self.updater.model.scheduler_D.step()
+                self.updater.model.scheduler_G.step()
 
             # print loss
-            tqdm.write('Epoch: {} GenLoss: {:.4f} DisLoss: {:.4f}'.format(
-                            epoch+1, losses["gen"], losses["dis"]))
-            tqdm.write("-"*60)
+            tqdm.write(
+                "Epoch: {} GenLoss: {:.4f} DisLoss: {:.4f}".format(
+                    epoch + 1, losses["gen"], losses["dis"]
+                )
+            )
+            tqdm.write("-" * 60)
 
         time_elapsed = datetime.datetime.now() - since
         print("Training complete in {}".format(time_elapsed))
@@ -153,7 +160,7 @@ class Updater(object):
         """
         epoch_loss_D = 0.0
         epoch_loss_G = 0.0
-        iteration = tqdm(self.dataloader,desc="Iteration", unit='iter')
+        iteration = tqdm(self.dataloader, desc="Iteration", unit="iter")
         for real_image, label_map, instance_map in iteration:
             data_dict = {
                 "real_image": real_image.to(self.device),
@@ -167,7 +174,11 @@ class Updater(object):
             # calculate final loss scalar
             loss_D = (loss_dict["d_real"] + loss_dict["d_fake"]) * 0.5
             loss_G = loss_dict["g_gan"] + loss_dict["g_fm"] + loss_dict["g_p"]
-            assert loss_D.dim()==0 and loss_G.dim()==0, "Loss is not scalr. Got shape is : {}, {}".format(loss_D.shape, loss_G.shape)
+            assert (
+                loss_D.dim() == 0 and loss_G.dim() == 0
+            ), "Loss is not scalr. Got shape is : {}, {}".format(
+                loss_D.shape, loss_G.shape
+            )
 
             # backward Discrimintor
             self.model.optimizer_D.zero_grad()
@@ -179,8 +190,8 @@ class Updater(object):
             loss_G.backward()
             self.model.optimizer_G.step()
 
-            epoch_loss_D += loss_D
-            epoch_loss_G += loss_G
+            epoch_loss_D += loss_D.detach()
+            epoch_loss_G += loss_G.detach()
 
         losses = {
             "dis": epoch_loss_D.item() / len(self.dataloader),
