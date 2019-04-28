@@ -48,7 +48,7 @@ class GANLoss(nn.Module):
         if use_lsgan:
             self.loss = nn.MSELoss()
         else:
-            self.loss = nn.BCELoss()
+            self.loss = nn.BCEWithLogitsLoss()
 
     def get_target_tensor(self, input_, target_is_real):
         """get target label
